@@ -15,8 +15,13 @@ blender_mattr_exporter/
 ├── mattr_export_operator.py    # 파일 저장 대화상자 및 익스포트 실행 Operator
 ├── mattr_properties.py         # 익스포트 옵션 PropertyGroup
 ├── mattr_writer.py             # JSON + binary 조립 진입점
+├── mattr_types.py              # MATTR 포맷 데이터 모델
+├── mattr_mesh.py               # Blender Mesh → MATTR 토폴로지 추출
+├── mattr_binary.py             # 4바이트 정렬 binary 버퍼 빌더
+├── mattr_validator.py          # 출력 파일 유효성 검증
 └── tests/
-    └── test_phase0.py          # Blender 낸 장기능 smoke test
+    ├── test_phase0.py          # Blender 낸 장기능 smoke test
+    └── test_phase1.py          # 토폴로지 익스포트 검증
 ```
 
 ## Extension 생명주기
@@ -39,8 +44,8 @@ blender_mattr_exporter/
 1. 사용자가 `File > Export > MATTR (.mattr.json)`를 선택한다.
 2. `ExportHelper`를 상속한 Operator가 파일 저장 대화상자를 연다.
 3. 사용자가 경로를 선택하고 Export를 누륩다.
-4. Operator의 `execute()`가 호출되고, 낸 장 설정과 선택된 오브젝트 목록을 `mattr_writer`에 전달한다.
-5. `mattr_writer`는 `.mattr.json`과 `.mattr.bin`을 생성한다.
+4. Operator의 `execute()`가 호출되고, active mesh 오브젝트를 `mattr_writer`에 전달한다.
+5. `mattr_writer`는 `obj.data`를 기반으로 `.mattr.json`과 `.mattr.bin`을 생성한다.
 
 ### 4. 비활성화
 
@@ -57,8 +62,10 @@ blender_mattr_exporter/
 ## 테스트
 
 - `tests/test_phase0.py`는 Blender 백그라운드 모드에서 Extension을 등록하고 Operator를 실행하는 smoke test다.
+- `tests/test_phase1.py`는 Default Cube와 빈 메시를 익스포트하여 토폴로지와 binary 레이아웃을 검증한다.
 - 실행 예시:
 
 ```bash
 blender -b -P blender_mattr_exporter/tests/test_phase0.py
+blender -b -P blender_mattr_exporter/tests/test_phase1.py
 ```

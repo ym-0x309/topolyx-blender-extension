@@ -11,8 +11,8 @@ classes = [
 ]
 
 
-def menu_func(layout, _context):
-    layout.operator(
+def menu_func(self, _context):
+    self.layout.operator(
         mattr_export_operator.MATTR_OT_export_mesh.bl_idname,
         text="MATTR (.mattr.json)",
     )

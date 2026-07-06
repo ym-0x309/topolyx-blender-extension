@@ -4,16 +4,20 @@ from typing import List
 
 import bpy
 
+from .mattr_coordinate import CoordinateConverter
 from .mattr_types import ElementCounts, TopologyData
 
 
-def extract_topology(mesh: bpy.types.Mesh) -> TopologyData:
+def extract_topology(
+    mesh: bpy.types.Mesh, converter: CoordinateConverter
+) -> TopologyData:
     """Blender Mesh로부터 MATTR 필수 토폴로지 배열을 추출한다.
 
     positions, edges, corner_vertices, corner_edges, face_offsets를
-    flat list 형태로 반환한다. 좌표계 변환은 수행하지 않는다.
+    flat list 형태로 반환한다. ``converter``를 통해 positions는
+    target coordinate system으로 변환된다.
     """
-    positions = _extract_positions(mesh)
+    positions = _extract_positions(mesh, converter)
     edges = _extract_edges(mesh)
     corner_vertices = _extract_corner_vertices(mesh)
     corner_edges = _extract_corner_edges(mesh)
@@ -36,11 +40,13 @@ def extract_topology(mesh: bpy.types.Mesh) -> TopologyData:
     )
 
 
-def _extract_positions(mesh: bpy.types.Mesh) -> List[float]:
-    """각 vertex의 local space 위치를 flat F32 배열로 반환한다."""
+def _extract_positions(
+    mesh: bpy.types.Mesh, converter: CoordinateConverter
+) -> List[float]:
+    """각 vertex의 local space 위치를 target 좌표계로 변환하여 flat F32 배열로 반환한다."""
     positions: List[float] = []
     for vertex in mesh.vertices:
-        co = vertex.co
+        co = converter.convert_position(vertex.co)
         positions.extend((co.x, co.y, co.z))
     return positions
 
@@ -68,9 +74,8 @@ def _extract_face_offsets(mesh: bpy.types.Mesh) -> List[int]:
     """각 face의 corner 범위 시작 index를 flat U32 배열로 반환한다.
 
     길이는 faces + 1이며, 마지막 값은 전체 corner 수와 같다.
+    face_offsets[i]는 mesh.polygons[i]에 대응해야 한다.
     """
-    # polygon이 loop_start 순서대로 저장되지 않을 가능성에 대비해 정렬한다.
-    polygons = sorted(mesh.polygons, key=lambda poly: poly.loop_start)
-    face_offsets = [poly.loop_start for poly in polygons]
+    face_offsets = [poly.loop_start for poly in mesh.polygons]
     face_offsets.append(len(mesh.loops))
     return face_offsets

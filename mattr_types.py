@@ -113,7 +113,7 @@ class Header:
     """MATTR 파일 헤더."""
 
     format: str = "MATTR"
-    version: str = "0.0.1"
+    version: str = "0.1.0"
 
     def to_dict(self) -> Dict[str, str]:
         return {"format": self.format, "version": self.version}
@@ -124,7 +124,7 @@ class CoordinateSystem:
     """좌표계 정보."""
 
     up_axis: str = "+Z"
-    forward_axis: str = "+Y"
+    forward_axis: str = "-Y"
     handedness: str = "RIGHT"
     winding: str = "CCW"
     meters_per_unit: float = 1.0

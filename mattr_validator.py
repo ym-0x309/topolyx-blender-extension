@@ -27,7 +27,7 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
 def _validate_header(json_data: Dict[str, Any]) -> None:
     header = json_data["header"]
     assert header["format"] == "MATTR", f"Unexpected format: {header['format']}"
-    assert header["version"] == "0.0.1", f"Unexpected version: {header['version']}"
+    assert header["version"] == "0.1.0", f"Unexpected version: {header['version']}"
 
 
 def _validate_buffer(json_data: Dict[str, Any], bin_data: bytes) -> None:
@@ -41,6 +41,15 @@ def _validate_coordinate_system(json_data: Dict[str, Any]) -> None:
     cs = json_data["coordinate_system"]
     assert cs["handedness"] in ("RIGHT", "LEFT")
     assert cs["winding"] in ("CW", "CCW")
+
+    valid_axes = ("+X", "-X", "+Y", "-Y", "+Z", "-Z")
+    up = cs["up_axis"]
+    forward = cs["forward_axis"]
+    assert up in valid_axes, f"Invalid up_axis: {up}"
+    assert forward in valid_axes, f"Invalid forward_axis: {forward}"
+    assert up[1] != forward[1], (
+        f"up_axis and forward_axis must not be parallel: {up}, {forward}"
+    )
 
 
 def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes) -> None:

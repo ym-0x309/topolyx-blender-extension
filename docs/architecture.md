@@ -62,6 +62,7 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_setting` | `BoolProperty` | 예시 옵션(향후 확장용) |
+| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"` 또는 `"MATTR_DEFAULT"` 좌표계 선택 |
 
 #### 메서드
 
@@ -71,6 +72,11 @@ def check(self, context: bpy.types.Context) -> bool
 - `ExportHelper`의 기본 `check()`를 오버라이드하여 `.mattr.json` 다중 확장자가 중복되지 않도록 filepath를 보정한다.
 
 ```python
+def draw(self, context: bpy.types.Context) -> None
+```
+- 파일 저장 대화상자 왼쪽 패널에 좌표계 옵션을 그린다.
+
+```python
 def execute(self, context: bpy.types.Context) -> set[str]
 ```
 - 선택된 오브젝트와 설정을 기반으로 익스포트를 수행한다.
@@ -78,7 +84,7 @@ def execute(self, context: bpy.types.Context) -> set[str]
 
 ## `mattr_properties.py`
 
-- **역할**: 익스포트 옵션을 저장하는 `PropertyGroup`을 정의한다. Phase 0에서는 빈 그룹으로 등록만 되어 있다.
+- **역할**: 익스포트 옵션을 저장하는 `PropertyGroup`을 정의한다. Phase 2까지는 Operator에 직접 속성을 두고, 이 그룹은 확장용으로 등록만 되어 있다.
 
 ### Public API
 
@@ -87,7 +93,7 @@ class MATTR_PG_export_settings(bpy.types.PropertyGroup)
 ```
 
 - Blender의 PropertyGroup 메커니즘을 통해 익스포트 UI 옵션을 노출할 수 있는 컨테이너다.
-- 향후 attribute 필터, 좌표계 옵션 등이 추가될 예정이다.
+- 향후 attribute 필터 등이 추가될 예정이다.
 
 ## `mattr_writer.py`
 
@@ -96,12 +102,13 @@ class MATTR_PG_export_settings(bpy.types.PropertyGroup)
 ### Public API
 
 ```python
-def write_mattr(filepath: str, obj: bpy.types.Object) -> None
+def write_mattr(filepath: str, obj: bpy.types.Object, coordinate_system_preset: str = "MATTR_DEFAULT") -> None
 ```
 
 - **입력**:
   - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
   - `obj`: 낸 장할 MESH 타입 Blender 오브젝트
+  - `coordinate_system_preset`: `"BLENDER"` 또는 `"MATTR_DEFAULT"`
 - **동작**: 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
 - **반환**: 없음
 
@@ -136,10 +143,45 @@ class MattrFile
 ### Public API
 
 ```python
-def extract_topology(mesh: bpy.types.Mesh) -> TopologyData
+def extract_topology(mesh: bpy.types.Mesh, converter: CoordinateConverter) -> TopologyData
 ```
 - `mesh.vertices`, `mesh.edges`, `mesh.polygons`, `mesh.loops`를 순회하여 flat 배열로 변환한다.
+- `converter`를 통해 vertex positions는 target 좌표계로 변환된다.
+- `face_offsets`는 `mesh.polygons`의 인덱스 순서를 따른다.
 - 반환값에는 `element_counts`와 `positions`, `edges`, `corner_vertices`, `corner_edges`, `face_offsets`가 포함된다.
+
+## `mattr_coordinate.py`
+
+- **역할**: Blender 좌표계에서 MATTR 목표 좌표계로 변환하는 변환기를 제공한다.
+
+### Public API
+
+```python
+@dataclass
+class CoordinateSystem
+```
+- `up_axis`, `forward_axis`, `handedness`, `winding`, `meters_per_unit`를 포함한다.
+
+```python
+class CoordinateConverter
+```
+
+```python
+def __init__(self, preset: str) -> None
+```
+- `"BLENDER"` 또는 `"MATTR_DEFAULT"` preset으로 초기화한다.
+- Right-handed 좌표계만 지원한다.
+
+```python
+def convert_position(self, v: Vector) -> Vector
+```
+- Blender local/world position을 target local/world position으로 변환한다.
+
+```python
+def convert_matrix(self, m: Matrix) -> Matrix
+```
+- Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다.
+- ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용한다.
 
 ## `mattr_binary.py`
 

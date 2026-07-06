@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Operator
-from bpy.props import StringProperty, BoolProperty
+from bpy.props import BoolProperty, EnumProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper
 
 from . import mattr_writer
@@ -23,6 +23,16 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         name="Example Option",
         description="Placeholder option for future export settings",
         default=True,
+    )
+
+    coordinate_system_preset: EnumProperty(
+        name="Coordinate System",
+        description="Target coordinate system for the exported file",
+        items=[
+            ("MATTR_DEFAULT", "MATTR Default", "+Z up, -Y forward (spec example)"),
+            ("BLENDER", "Blender", "+Z up, -Y forward (Blender native)"),
+        ],
+        default="MATTR_DEFAULT",
     )
 
     def check(self, _context):
@@ -49,6 +59,10 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             return True
         return False
 
+    def draw(self, context):
+        layout = self.layout
+        layout.prop(self, "coordinate_system_preset")
+
     def execute(self, context):
         obj = context.active_object
         if obj is None or obj.type != "MESH":
@@ -58,7 +72,9 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         self.filepath = _ensure_mattr_json_ext(self.filepath)
 
         try:
-            mattr_writer.write_mattr(self.filepath, obj)
+            mattr_writer.write_mattr(
+                self.filepath, obj, self.coordinate_system_preset
+            )
         except Exception as exc:
             self.report({"ERROR"}, f"MATTR export failed: {exc}")
             return {"CANCELLED"}

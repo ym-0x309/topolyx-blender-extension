@@ -55,7 +55,9 @@ blender_mattr_exporter/
 ## 주요 설계 결정
 
 - **원본 메시 사용**: 평가된 메시(evaluated mesh)가 아닌 `obj.data` 원본 데이터 블록을 낸 장한다.
-- **Blender 기본 좌표계**: Blender의 기본 좌표계(`+Z` Up, `+Y` Forward, Right-handed, CCW)를 그대로 사용한다. 별도의 축 변환은 수행하지 않는다.
+- **좌표계 변환 지원**: 기본적으로 명세 예시 좌표계(`+Z` Up, `-Y` Forward, Right-handed, CCW)로 낸 장한다. Blender의 좌표계(`+Z` Up, `-Y` Forward)와 동일하므로, 현재 `MATTR_DEFAULT`와 `BLENDER` preset은 동일한 출력을 생성한다.
+- **Object Transform 변환**: `object.transform`은 mesh local space 좌표를 file world space 좌표로 변환하는 행렬로, 좌표계 변환에 맞춰 함께 변환된다.
+- **Left-handed 좌표계 미지원**: Phase 2에서는 Right-handed 좌표계만 지원한다.
 - **Attribute 처리**: Blender 메시의 모든 attribute를 순회하여 낸 장한다. 단, `MATTR v0.0.1`이 지원하지 않는 component type(예: `BOOLEAN`, `BYTE_COLOR`, `STRING` 등)은 걸러낸다.
 - **출력 파일**: 사용자가 선택한 `.mattr.json` 경로를 기준으로 동일한 basename의 `.mattr.bin`을 생성한다.
 

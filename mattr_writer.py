@@ -6,10 +6,10 @@ from typing import List
 
 import bpy
 
-from . import mattr_binary, mattr_mesh
+from . import mattr_binary, mattr_coordinate, mattr_mesh
+from .mattr_coordinate import CoordinateConverter
 from .mattr_types import (
     Buffer,
-    CoordinateSystem,
     DataDescriptor,
     Header,
     MattrFile,
@@ -19,18 +19,24 @@ from .mattr_types import (
 )
 
 
-def write_mattr(filepath: str, obj: bpy.types.Object) -> None:
+def write_mattr(
+    filepath: str, obj: bpy.types.Object, coordinate_system_preset: str = "MATTR_DEFAULT"
+) -> None:
     """단일 메시 오브젝트를 MATTR 파일 쌍으로 낸 장한다.
 
     - filepath: 사용자가 선택한 .mattr.json 경로
     - obj: 낸 장할 MESH 타입 Blender 오브젝트
+    - coordinate_system_preset: "BLENDER" 또는 "MATTR_DEFAULT"
     """
     path = Path(filepath)
     bin_path = path.parent / (path.stem + ".bin")
     bin_uri = bin_path.name
 
+    converter = CoordinateConverter(coordinate_system_preset)
+    target_cs = converter.target
+
     mesh = obj.data
-    topology_data = mattr_mesh.extract_topology(mesh)
+    topology_data = mattr_mesh.extract_topology(mesh, converter)
 
     buffer = mattr_binary.BinaryBuffer()
     positions_offset = buffer.append_f32(topology_data.positions)
@@ -81,13 +87,15 @@ def write_mattr(filepath: str, obj: bpy.types.Object) -> None:
     mattr_file = MattrFile(
         header=Header(),
         buffer=Buffer(uri=bin_uri, byte_length=buffer.byte_length()),
-        coordinate_system=CoordinateSystem(),
+        coordinate_system=target_cs,
         objects=[
             ObjectEntry(
                 name=obj.name,
                 type="MESH",
                 index=0,
-                transform=_matrix_to_column_major_list(obj.matrix_world),
+                transform=_matrix_to_column_major_list(
+                    converter.convert_matrix(obj.matrix_world)
+                ),
             )
         ],
         meshes=[

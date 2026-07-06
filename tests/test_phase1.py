@@ -39,10 +39,12 @@ def _clear_scene():
     bpy.ops.object.delete(use_global=False)
 
 
-def _export_active_object(tmpdir: Path, name: str) -> tuple[Path, Path]:
+def _export_active_object(
+    tmpdir: Path, name: str, **operator_kwargs
+) -> tuple[Path, Path]:
     """현재 active object를 익스포트하고 JSON/bin 경로를 반환한다."""
     json_path = tmpdir / f"{name}.mattr.json"
-    result = bpy.ops.export_mesh.mattr(filepath=str(json_path))
+    result = bpy.ops.export_mesh.mattr(filepath=str(json_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"
     bin_path = json_path.with_name(json_path.stem + ".bin")
     return json_path, bin_path
@@ -95,7 +97,9 @@ def test_transformed_cube():
 
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
-        json_path, bin_path = _export_active_object(tmpdir, "transformed_cube")
+        json_path, bin_path = _export_active_object(
+            tmpdir, "transformed_cube", coordinate_system_preset="BLENDER"
+        )
 
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)

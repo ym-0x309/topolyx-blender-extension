@@ -2,7 +2,7 @@
 
 import json
 from pathlib import Path
-from typing import List
+from typing import List, Sequence
 
 import bpy
 
@@ -17,21 +17,22 @@ from .mattr_types import (
     Mesh,
     ObjectEntry,
     Topology,
+    TopologyData,
 )
 
 
 def write_mattr(
     filepath: str,
-    obj: bpy.types.Object,
+    objects: Sequence[bpy.types.Object],
     coordinate_system_preset: str = "MATTR_DEFAULT",
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
 ) -> None:
-    """단일 메시 오브젝트를 MATTR 파일 쌍으로 낸 장한다.
+    """하나 이상의 메시 오브젝트를 MATTR 파일 쌍으로 낸 장한다.
 
     - filepath: 사용자가 선택한 .mattr.json 경로
-    - obj: 낸 장할 MESH 타입 Blender 오브젝트
+    - objects: 낸 장할 MESH 타입 Blender 오브젝트 목록
     - coordinate_system_preset: "BLENDER" 또는 "MATTR_DEFAULT"
     - export_attributes: attribute 낸 장 여부
     - exclude_hidden_attributes: '.select_*', 'position' 등 난 Outputplus/internal attribute 제외
@@ -44,21 +45,73 @@ def write_mattr(
     converter = CoordinateConverter(coordinate_system_preset)
     target_cs = converter.target
 
-    mesh = obj.data
-    topology_data = mattr_mesh.extract_topology(mesh, converter)
-
     excluded_names = _parse_excluded_attribute_names(excluded_attribute_names)
-    attribute_arrays, warnings = mattr_attribute.extract_attributes(
-        mesh,
-        topology_data.element_counts,
-        export_attributes=export_attributes,
-        exclude_hidden=exclude_hidden_attributes,
-        excluded_names=excluded_names,
-    )
-    for warning in warnings:
-        print(f"MATTR export warning: {warning}")
-
     buffer = mattr_binary.BinaryBuffer()
+
+    mesh_to_index: dict[bpy.types.Mesh, int] = {}
+    meshes: list[Mesh] = []
+    object_entries: list[ObjectEntry] = []
+
+    for obj in objects:
+        mesh = obj.data
+        if mesh not in mesh_to_index:
+            topology_data = mattr_mesh.extract_topology(mesh, converter)
+            attribute_arrays, warnings = mattr_attribute.extract_attributes(
+                mesh,
+                topology_data.element_counts,
+                export_attributes=export_attributes,
+                exclude_hidden=exclude_hidden_attributes,
+                excluded_names=excluded_names,
+            )
+            for warning in warnings:
+                print(f"MATTR export warning: {warning}")
+
+            mattr_mesh_obj = _append_mesh(buffer, mesh.name, topology_data, attribute_arrays)
+            index = len(meshes)
+            mesh_to_index[mesh] = index
+            meshes.append(mattr_mesh_obj)
+        else:
+            index = mesh_to_index[mesh]
+
+        object_entries.append(
+            ObjectEntry(
+                name=obj.name,
+                type="MESH",
+                index=index,
+                transform=_matrix_to_column_major_list(
+                    converter.convert_matrix(obj.matrix_world)
+                ),
+            )
+        )
+
+    mattr_file = MattrFile(
+        header=Header(),
+        buffer=Buffer(uri=bin_uri, byte_length=buffer.byte_length()),
+        coordinate_system=target_cs,
+        objects=object_entries,
+        meshes=meshes,
+    )
+
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
+
+    buffer.write(bin_path)
+
+
+def _parse_excluded_attribute_names(names_str: str) -> set[str]:
+    """쉼표로 구분된 attribute 이름 문자열을 집합으로 변환한다."""
+    return {name.strip() for name in names_str.split(",") if name.strip()}
+
+
+def _append_mesh(
+    buffer: mattr_binary.BinaryBuffer,
+    mesh_name: str,
+    topology_data: TopologyData,
+    attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
+) -> Mesh:
+    """하나의 메시에 대해 topology와 attributes를 binary 버퍼에 기록한다."""
+    counts = topology_data.element_counts
+
     positions_offset = buffer.append_f32(topology_data.positions)
     edges_offset = buffer.append_u32(topology_data.edges)
     corner_vertices_offset = buffer.append_u32(topology_data.corner_vertices)
@@ -67,7 +120,6 @@ def write_mattr(
 
     attributes = _append_attributes(buffer, attribute_arrays)
 
-    counts = topology_data.element_counts
     topology = Topology(
         positions=DataDescriptor(
             byte_offset=positions_offset,
@@ -106,43 +158,16 @@ def write_mattr(
         ),
     )
 
-    mattr_file = MattrFile(
-        header=Header(),
-        buffer=Buffer(uri=bin_uri, byte_length=buffer.byte_length()),
-        coordinate_system=target_cs,
-        objects=[
-            ObjectEntry(
-                name=obj.name,
-                type="MESH",
-                index=0,
-                transform=_matrix_to_column_major_list(
-                    converter.convert_matrix(obj.matrix_world)
-                ),
-            )
-        ],
-        meshes=[
-            Mesh(
-                name=mesh.name,
-                element_counts=counts,
-                topology=topology,
-                attributes=attributes,
-            )
-        ],
+    return Mesh(
+        name=mesh_name,
+        element_counts=counts,
+        topology=topology,
+        attributes=attributes,
     )
-
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
-
-    buffer.write(bin_path)
-
-
-def _parse_excluded_attribute_names(names_str: str) -> set[str]:
-    """쉼표로 구분된 attribute 이름 문자열을 집합으로 변환한다."""
-    return {name.strip() for name in names_str.split(",") if name.strip()}
 
 
 def _append_attributes(
-    buffer: mattr_binary.BinaryBuffer, attribute_arrays
+    buffer: mattr_binary.BinaryBuffer, attribute_arrays: Sequence[mattr_attribute.AttributeArrays]
 ) -> list[Attribute]:
     """attribute 배열들을 binary 버퍼에 추가하고 descriptor를 생성한다."""
     attributes: list[Attribute] = []

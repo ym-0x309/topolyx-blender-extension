@@ -19,13 +19,13 @@ _AXIS_VECTORS = {
 _PRESETS: Dict[str, CoordinateSystem] = {
     "BLENDER": CoordinateSystem(
         up_axis="+Z",
-        forward_axis="-Y",
+        forward_axis="+Y",
         handedness="RIGHT",
         winding="CCW",
     ),
     "MATTR_DEFAULT": CoordinateSystem(
         up_axis="+Z",
-        forward_axis="-Y",
+        forward_axis="+Y",
         handedness="RIGHT",
         winding="CCW",
     ),
@@ -82,19 +82,18 @@ class CoordinateConverter:
         cs = self.target
         up = _AXIS_VECTORS[cs.up_axis]
         forward = _AXIS_VECTORS[cs.forward_axis]
-        # semantic forward direction f points along -e_y of the target basis.
-        # For a right-handed basis (e_x, e_y, e_z) with e_z = up and e_y = -forward:
-        #   e_x = e_y x e_z = (-forward) x up = up x forward
-        right = up.cross(forward)
+        # For a right-handed basis (right, forward, up):
+        #   right x forward = up  =>  right = forward x up
+        right = forward.cross(up)
         right.normalize()
 
         # B columns are target basis vectors expressed in Blender space.
         # p_blender = B @ p_target  =>  p_target = B^-1 @ p_blender = B^T @ p_blender.
         B = Matrix(
             (
-                (right.x, -forward.x, up.x),
-                (right.y, -forward.y, up.y),
-                (right.z, -forward.z, up.z),
+                (right.x, forward.x, up.x),
+                (right.y, forward.y, up.y),
+                (right.z, forward.z, up.z),
             )
         )
         return B.transposed()

@@ -43,6 +43,9 @@ def _export_active_object(
     tmpdir: Path, name: str, **operator_kwargs
 ) -> tuple[Path, Path]:
     """현재 active object를 익스포트하고 JSON/bin 경로를 반환한다."""
+    obj = bpy.context.active_object
+    if obj is not None:
+        obj.select_set(True)
     json_path = tmpdir / f"{name}.mattr.json"
     result = bpy.ops.export_mesh.mattr(filepath=str(json_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"

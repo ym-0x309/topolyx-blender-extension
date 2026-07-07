@@ -25,12 +25,18 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         default=True,
     )
 
+    use_selection: BoolProperty(
+        name="Selection Only",
+        description="Export only selected mesh objects",
+        default=True,
+    )
+
     coordinate_system_preset: EnumProperty(
         name="Coordinate System",
         description="Target coordinate system for the exported file",
         items=[
-            ("MATTR_DEFAULT", "MATTR Default", "+Z up, -Y forward (spec example)"),
-            ("BLENDER", "Blender", "+Z up, -Y forward (Blender native)"),
+            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward (spec example)"),
+            ("BLENDER", "Blender", "+Z up, +Y forward (Blender native)"),
         ],
         default="MATTR_DEFAULT",
     )
@@ -79,6 +85,7 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
 
     def draw(self, context):
         layout = self.layout
+        layout.prop(self, "use_selection")
         layout.prop(self, "coordinate_system_preset")
         layout.prop(self, "export_attributes")
         if self.export_attributes:
@@ -86,9 +93,19 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             layout.prop(self, "excluded_attribute_names")
 
     def execute(self, context):
-        obj = context.active_object
-        if obj is None or obj.type != "MESH":
-            self.report({"ERROR"}, "No active mesh object selected")
+        if self.use_selection:
+            target_objects = list(context.selected_objects)
+        else:
+            target_objects = list(context.scene.objects)
+
+        mesh_objects = [obj for obj in target_objects if obj.type == "MESH"]
+
+        for obj in target_objects:
+            if obj.type != "MESH":
+                print(f"MATTR export warning: skipping non-mesh object '{obj.name}'")
+
+        if not mesh_objects:
+            self.report({"ERROR"}, "No mesh objects to export")
             return {"CANCELLED"}
 
         self.filepath = _ensure_mattr_json_ext(self.filepath)
@@ -96,7 +113,7 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         try:
             mattr_writer.write_mattr(
                 self.filepath,
-                obj,
+                mesh_objects,
                 self.coordinate_system_preset,
                 export_attributes=self.export_attributes,
                 exclude_hidden_attributes=self.exclude_hidden_attributes,

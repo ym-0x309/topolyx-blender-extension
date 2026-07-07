@@ -43,6 +43,9 @@ def _export_active_object(
     tmpdir: Path, name: str, **operator_kwargs
 ) -> tuple[Path, Path]:
     """현재 active object를 익스포트하고 JSON/bin 경로를 반환한다."""
+    obj = bpy.context.active_object
+    if obj is not None:
+        obj.select_set(True)
     json_path = tmpdir / f"{name}.mattr.json"
     result = bpy.ops.export_mesh.mattr(filepath=str(json_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"
@@ -75,7 +78,7 @@ def test_default_cube_mattr_default():
         cs = data["coordinate_system"]
         assert cs == {
             "up_axis": "+Z",
-            "forward_axis": "-Y",
+            "forward_axis": "+Y",
             "handedness": "RIGHT",
             "winding": "CCW",
             "meters_per_unit": 1.0,
@@ -97,7 +100,7 @@ def test_default_cube_mattr_default():
         assert min(ys) == -1.0 and max(ys) == 1.0
         assert min(zs) == -1.0 and max(zs) == 1.0
 
-        # Blender와 MATTR_DEFAULT는 동일한 좌표계(up=+Z, forward=-Y)이므로
+        # Blender와 MATTR_DEFAULT는 동일한 좌표계(up=+Z, forward=+Y)이므로
         # 좌표 변환이 일어나지 않는다.
         # Default Cube의 첫 번째 vertex는 Blender에서 (-1, -1, -1)이다.
         first_x, first_y, first_z = positions[0], positions[1], positions[2]
@@ -180,7 +183,7 @@ def test_blender_preset_unchanged():
         mattr_validator.validate_mattr(data, bin_data)
 
         cs = data["coordinate_system"]
-        assert cs["forward_axis"] == "-Y"
+        assert cs["forward_axis"] == "+Y"
 
         transform = data["objects"][0]["transform"]
         assert abs(transform[12] - 1.0) < 1e-6

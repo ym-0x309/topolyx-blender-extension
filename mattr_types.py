@@ -142,7 +142,7 @@ class CoordinateSystem:
     """좌표계 정보."""
 
     up_axis: str = "+Z"
-    forward_axis: str = "-Y"
+    forward_axis: str = "+Y"
     handedness: str = "RIGHT"
     winding: str = "CCW"
     meters_per_unit: float = 1.0

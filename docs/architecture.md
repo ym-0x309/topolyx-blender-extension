@@ -62,6 +62,7 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_setting` | `BoolProperty` | 예시 옵션(향후 확장용) |
+| `use_selection` | `BoolProperty` | `True`면 선택된 오브젝트만, `False`면 씬의 모든 메시 오브젝트 익스포트 |
 | `coordinate_system_preset` | `EnumProperty` | `"BLENDER"` 또는 `"MATTR_DEFAULT"` 좌표계 선택 |
 | `export_attributes` | `BoolProperty` | attribute 익스포트 여부 |
 | `exclude_hidden_attributes` | `BoolProperty` | 난 Outputplus/internal attribute 제외 여부 |
@@ -107,7 +108,7 @@ class MATTR_PG_export_settings(bpy.types.PropertyGroup)
 ```python
 def write_mattr(
     filepath: str,
-    obj: bpy.types.Object,
+    objects: Sequence[bpy.types.Object],
     coordinate_system_preset: str = "MATTR_DEFAULT",
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
@@ -117,13 +118,28 @@ def write_mattr(
 
 - **입력**:
   - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
-  - `obj`: 낸 장할 MESH 타입 Blender 오브젝트
+  - `objects`: 낸 장할 MESH 타입 Blender 오브젝트 목록
   - `coordinate_system_preset`: `"BLENDER"` 또는 `"MATTR_DEFAULT"`
   - `export_attributes`: attribute 낸 장 여부
   - `exclude_hidden_attributes`: 난 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
-- **동작**: 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
+- **동작**:
+  - 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
+  - `objects`를 순회하며 메시 데이터 블록을 기준으로 중복을 제거한다.
+  - 동일한 메시를 참조하는 오브젝트는 `meshes` 배열에서 한 번만 기록된다.
 - **반환**: 없음
+
+```python
+def _append_mesh(
+    buffer: BinaryBuffer,
+    mesh_name: str,
+    topology_data: TopologyData,
+    attribute_arrays: Sequence[AttributeArrays],
+) -> Mesh
+```
+
+- 하나의 메시에 대해 topology 5종 배열과 일반 attribute 배열을 `BinaryBuffer`에 추가한다.
+- 추가된 배열의 descriptor를 포함하는 `Mesh` 객체를 반환한다.
 
 ## `mattr_types.py`
 
@@ -336,3 +352,17 @@ def main() -> None
 - Extension을 등록한다.
 - Default Cube, custom float/int attribute, vertex color, UV map, 빈 메시 등을 익스포트한다.
 - `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, attribute descriptor 및 binary 값을 확인한다.
+
+## `tests/test_phase4.py`
+
+- **역할**: Blender 백그라운드 모드에서 다중 오브젝트 익스포트와 메시 공유를 검증하는 테스트다.
+
+### Public API
+
+```python
+def main() -> None
+```
+
+- Extension을 등록한다.
+- 서로 다른 메시를 가진 여러 오브젝트, 링크 복제로 공유된 메시, 선택/비선택 오브젝트, 비메시 오브젝트 스킵, 빈 메시 포함 등을 검증한다.
+- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, `objects`/`meshes` 구조 및 `objects[].index` 공유를 확인한다.

@@ -1,7 +1,7 @@
 """MATTR 출력 파일의 유효성을 검증한다."""
 
 import struct
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 
 _COMPONENT_SIZES = {
@@ -75,18 +75,32 @@ def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes) -> None:
     _validate_face_offsets(topo["face_offsets"], counts, bin_data)
     _validate_index_ranges(topo, counts, bin_data)
     _validate_corner_edge_consistency(topo, counts, bin_data)
+    _validate_attributes(mesh, bin_data)
+
+
+_DOMAIN_COUNT_KEY = {
+    "POINT": "vertices",
+    "EDGE": "edges",
+    "FACE": "faces",
+    "CORNER": "corners",
+}
 
 
 def _validate_descriptor(
     desc: Dict[str, Any],
     bin_data: bytes,
-    expected_component: str,
-    expected_count: int,
+    expected_component: Optional[str],
+    expected_count: Optional[int],
     expected_elements: int,
 ) -> None:
     assert desc["byte_offset"] % 4 == 0, f"Misaligned byte_offset: {desc['byte_offset']}"
-    assert desc["component_type"] == expected_component
-    assert desc["component_count"] == expected_count
+    assert desc["component_type"] in _COMPONENT_SIZES, (
+        f"Invalid component_type: {desc['component_type']}"
+    )
+    if expected_component is not None:
+        assert desc["component_type"] == expected_component
+    if expected_count is not None:
+        assert desc["component_count"] == expected_count
     assert desc["element_count"] == expected_elements
 
     component_size = _COMPONENT_SIZES[desc["component_type"]]
@@ -156,6 +170,34 @@ def _validate_corner_edge_consistency(topo: Dict[str, Any], counts: Dict[str, in
             assert actual == expected, (
                 f"Corner-edge inconsistency at corner {c}: edge {edge_idx} has {actual}, expected {expected}"
             )
+
+
+def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes) -> None:
+    """일반 attribute의 descriptor와 domain/element_count 일관성을 검증한다."""
+    counts = mesh["element_counts"]
+    attributes = mesh.get("attributes", [])
+    seen_names = set()
+
+    for attr in attributes:
+        name = attr["name"]
+        assert name, "Attribute name must not be empty"
+        assert name not in seen_names, f"Duplicate attribute name: {name}"
+        seen_names.add(name)
+
+        domain = attr["domain"]
+        assert domain in _DOMAIN_COUNT_KEY, f"Invalid attribute domain: {domain}"
+
+        expected_elements = counts[_DOMAIN_COUNT_KEY[domain]]
+        _validate_descriptor(
+            attr["data"],
+            bin_data,
+            expected_component=None,
+            expected_count=None,
+            expected_elements=expected_elements,
+        )
+        assert attr["data"]["component_count"] >= 1, (
+            f"component_count must be >= 1 for attribute '{name}'"
+        )
 
 
 def _validate_object(obj: Dict[str, Any], mesh_count: int) -> None:

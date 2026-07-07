@@ -35,6 +35,24 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         default="MATTR_DEFAULT",
     )
 
+    export_attributes: BoolProperty(
+        name="Export Attributes",
+        description="Export mesh attributes such as UV maps, vertex colors, and custom attributes",
+        default=True,
+    )
+
+    exclude_hidden_attributes: BoolProperty(
+        name="Exclude Hidden/Internal Attributes",
+        description="Skip attributes with names starting with '.' and known internal attributes such as 'position'",
+        default=True,
+    )
+
+    excluded_attribute_names: StringProperty(
+        name="Excluded Attributes",
+        description="Comma-separated list of attribute names to skip during export",
+        default="",
+    )
+
     def check(self, _context):
         """다중 확장자(.mattr.json)가 중복되지 않도록 filepath를 보정한다."""
         import os
@@ -62,6 +80,10 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "coordinate_system_preset")
+        layout.prop(self, "export_attributes")
+        if self.export_attributes:
+            layout.prop(self, "exclude_hidden_attributes")
+            layout.prop(self, "excluded_attribute_names")
 
     def execute(self, context):
         obj = context.active_object
@@ -73,7 +95,12 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
 
         try:
             mattr_writer.write_mattr(
-                self.filepath, obj, self.coordinate_system_preset
+                self.filepath,
+                obj,
+                self.coordinate_system_preset,
+                export_attributes=self.export_attributes,
+                exclude_hidden_attributes=self.exclude_hidden_attributes,
+                excluded_attribute_names=self.excluded_attribute_names,
             )
         except Exception as exc:
             self.report({"ERROR"}, f"MATTR export failed: {exc}")

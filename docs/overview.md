@@ -17,11 +17,14 @@ blender_mattr_exporter/
 ├── mattr_writer.py             # JSON + binary 조립 진입점
 ├── mattr_types.py              # MATTR 포맷 데이터 모델
 ├── mattr_mesh.py               # Blender Mesh → MATTR 토폴로지 추출
+├── mattr_attribute.py          # Blender Mesh Attribute → MATTR attribute 추출
 ├── mattr_binary.py             # 4바이트 정렬 binary 버퍼 빌더
 ├── mattr_validator.py          # 출력 파일 유효성 검증
 └── tests/
     ├── test_phase0.py          # Blender 낸 장기능 smoke test
-    └── test_phase1.py          # 토폴로지 익스포트 검증
+    ├── test_phase1.py          # 토폴로지 익스포트 검증
+    ├── test_phase2.py          # 좌표계 변환 검증
+    └── test_phase3.py          # attribute 익스포트 검증
 ```
 
 ## Extension 생명주기
@@ -58,16 +61,26 @@ blender_mattr_exporter/
 - **좌표계 변환 지원**: 기본적으로 명세 예시 좌표계(`+Z` Up, `-Y` Forward, Right-handed, CCW)로 낸 장한다. Blender의 좌표계(`+Z` Up, `-Y` Forward)와 동일하므로, 현재 `MATTR_DEFAULT`와 `BLENDER` preset은 동일한 출력을 생성한다.
 - **Object Transform 변환**: `object.transform`은 mesh local space 좌표를 file world space 좌표로 변환하는 행렬로, 좌표계 변환에 맞춰 함께 변환된다.
 - **Left-handed 좌표계 미지원**: Phase 2에서는 Right-handed 좌표계만 지원한다.
-- **Attribute 처리**: Blender 메시의 모든 attribute를 순회하여 낸 장한다. 단, `MATTR v0.0.1`이 지원하지 않는 component type(예: `BOOLEAN`, `BYTE_COLOR`, `STRING` 등)은 걸러낸다.
+- **Attribute 처리**:
+  - `POINT`, `EDGE`, `FACE`, `CORNER` domain attribute를 낸 장한다.
+  - 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`이다.
+  - `BYTE_COLOR`는 0~1 범위로 정규화된 `F32×4`로 저장한다.
+  - `BOOLEAN`, `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` 등 v0.0.1에서 지원하지 않는 타입은 걸러내고 경고를 출력한다.
+  - `.`로 시작하는 hidden/internal attribute, `position`, `sharp_edge/face`, `freestyle_edge/face` 등은 기본적으로 제외한다.
+  - 사용자는 `Excluded Attributes`에 쉼표로 구분된 이름 목록을 지정해 추가로 제외할 수 있다.
 - **출력 파일**: 사용자가 선택한 `.mattr.json` 경로를 기준으로 동일한 basename의 `.mattr.bin`을 생성한다.
 
 ## 테스트
 
 - `tests/test_phase0.py`는 Blender 백그라운드 모드에서 Extension을 등록하고 Operator를 실행하는 smoke test다.
 - `tests/test_phase1.py`는 Default Cube와 빈 메시를 익스포트하여 토폴로지와 binary 레이아웃을 검증한다.
+- `tests/test_phase2.py`는 좌표계 변환 및 Object Transform 변환을 검증한다.
+- `tests/test_phase3.py`는 UV map, vertex color, custom attribute 등 attribute 익스포트를 검증한다.
 - 실행 예시:
 
 ```bash
 blender -b -P blender_mattr_exporter/tests/test_phase0.py
 blender -b -P blender_mattr_exporter/tests/test_phase1.py
+blender -b -P blender_mattr_exporter/tests/test_phase2.py
+blender -b -P blender_mattr_exporter/tests/test_phase3.py
 ```

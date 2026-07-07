@@ -58,7 +58,10 @@ def test_default_cube_mattr_default():
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         json_path, bin_path = _export_active_object(
-            tmpdir, "cube_mattr_default", coordinate_system_preset="MATTR_DEFAULT"
+            tmpdir,
+            "cube_mattr_default",
+            coordinate_system_preset="MATTR_DEFAULT",
+            export_attributes=False,
         )
 
         with open(json_path, "r", encoding="utf-8") as f:
@@ -115,8 +118,10 @@ def test_transformed_cube_mattr_default():
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         json_path, bin_path = _export_active_object(
-            tmpdir, "transformed_cube_mattr_default",
+            tmpdir,
+            "transformed_cube_mattr_default",
             coordinate_system_preset="MATTR_DEFAULT",
+            export_attributes=False,
         )
 
         with open(json_path, "r", encoding="utf-8") as f:
@@ -160,7 +165,10 @@ def test_blender_preset_unchanged():
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         json_path, bin_path = _export_active_object(
-            tmpdir, "cube_blender", coordinate_system_preset="BLENDER"
+            tmpdir,
+            "cube_blender",
+            coordinate_system_preset="BLENDER",
+            export_attributes=False,
         )
 
         with open(json_path, "r", encoding="utf-8") as f:
@@ -200,7 +208,10 @@ def test_face_offsets_order():
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         json_path, bin_path = _export_active_object(
-            tmpdir, "reordered", coordinate_system_preset="BLENDER"
+            tmpdir,
+            "reordered",
+            coordinate_system_preset="BLENDER",
+            export_attributes=False,
         )
 
         with open(json_path, "r", encoding="utf-8") as f:

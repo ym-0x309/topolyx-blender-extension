@@ -24,6 +24,13 @@ class BinaryBuffer:
         self._data.extend(struct.pack(f"<{len(values)}f", *values))
         return offset
 
+    def append_i32(self, values: Sequence[int]) -> int:
+        """I32 배열을 추가하고 시작 byte offset을 반환한다."""
+        self._align(4)
+        offset = len(self._data)
+        self._data.extend(struct.pack(f"<{len(values)}i", *values))
+        return offset
+
     def append_u32(self, values: Sequence[int]) -> int:
         """U32 배열을 추가하고 시작 byte offset을 반환한다."""
         self._align(4)

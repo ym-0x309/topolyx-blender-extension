@@ -6,9 +6,10 @@ from typing import List
 
 import bpy
 
-from . import mattr_binary, mattr_coordinate, mattr_mesh
+from . import mattr_attribute, mattr_binary, mattr_coordinate, mattr_mesh
 from .mattr_coordinate import CoordinateConverter
 from .mattr_types import (
+    Attribute,
     Buffer,
     DataDescriptor,
     Header,
@@ -20,13 +21,21 @@ from .mattr_types import (
 
 
 def write_mattr(
-    filepath: str, obj: bpy.types.Object, coordinate_system_preset: str = "MATTR_DEFAULT"
+    filepath: str,
+    obj: bpy.types.Object,
+    coordinate_system_preset: str = "MATTR_DEFAULT",
+    export_attributes: bool = True,
+    exclude_hidden_attributes: bool = True,
+    excluded_attribute_names: str = "",
 ) -> None:
     """단일 메시 오브젝트를 MATTR 파일 쌍으로 낸 장한다.
 
     - filepath: 사용자가 선택한 .mattr.json 경로
     - obj: 낸 장할 MESH 타입 Blender 오브젝트
     - coordinate_system_preset: "BLENDER" 또는 "MATTR_DEFAULT"
+    - export_attributes: attribute 낸 장 여부
+    - exclude_hidden_attributes: '.select_*', 'position' 등 난 Outputplus/internal attribute 제외
+    - excluded_attribute_names: 쉼표로 구분된 추가 제외 attribute 이름
     """
     path = Path(filepath)
     bin_path = path.parent / (path.stem + ".bin")
@@ -38,12 +47,25 @@ def write_mattr(
     mesh = obj.data
     topology_data = mattr_mesh.extract_topology(mesh, converter)
 
+    excluded_names = _parse_excluded_attribute_names(excluded_attribute_names)
+    attribute_arrays, warnings = mattr_attribute.extract_attributes(
+        mesh,
+        topology_data.element_counts,
+        export_attributes=export_attributes,
+        exclude_hidden=exclude_hidden_attributes,
+        excluded_names=excluded_names,
+    )
+    for warning in warnings:
+        print(f"MATTR export warning: {warning}")
+
     buffer = mattr_binary.BinaryBuffer()
     positions_offset = buffer.append_f32(topology_data.positions)
     edges_offset = buffer.append_u32(topology_data.edges)
     corner_vertices_offset = buffer.append_u32(topology_data.corner_vertices)
     corner_edges_offset = buffer.append_u32(topology_data.corner_edges)
     face_offsets_offset = buffer.append_u32(topology_data.face_offsets)
+
+    attributes = _append_attributes(buffer, attribute_arrays)
 
     counts = topology_data.element_counts
     topology = Topology(
@@ -103,6 +125,7 @@ def write_mattr(
                 name=mesh.name,
                 element_counts=counts,
                 topology=topology,
+                attributes=attributes,
             )
         ],
     )
@@ -111,6 +134,42 @@ def write_mattr(
         json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
 
     buffer.write(bin_path)
+
+
+def _parse_excluded_attribute_names(names_str: str) -> set[str]:
+    """쉼표로 구분된 attribute 이름 문자열을 집합으로 변환한다."""
+    return {name.strip() for name in names_str.split(",") if name.strip()}
+
+
+def _append_attributes(
+    buffer: mattr_binary.BinaryBuffer, attribute_arrays
+) -> list[Attribute]:
+    """attribute 배열들을 binary 버퍼에 추가하고 descriptor를 생성한다."""
+    attributes: list[Attribute] = []
+    for attr in attribute_arrays:
+        if attr.component_type == "F32":
+            offset = buffer.append_f32(attr.values)
+        elif attr.component_type == "I32":
+            offset = buffer.append_i32(attr.values)
+        elif attr.component_type == "U32":
+            offset = buffer.append_u32(attr.values)
+        else:
+            raise ValueError(f"Unsupported attribute component type: {attr.component_type}")
+
+        attributes.append(
+            Attribute(
+                name=attr.name,
+                domain=attr.domain,
+                data=DataDescriptor(
+                    byte_offset=offset,
+                    byte_length=len(attr.values) * 4,
+                    component_type=attr.component_type,
+                    component_count=attr.component_count,
+                    element_count=len(attr.values) // attr.component_count,
+                ),
+            )
+        )
+    return attributes
 
 
 def _matrix_to_column_major_list(matrix) -> List[float]:

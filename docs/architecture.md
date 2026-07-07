@@ -63,6 +63,9 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_setting` | `BoolProperty` | 예시 옵션(향후 확장용) |
 | `coordinate_system_preset` | `EnumProperty` | `"BLENDER"` 또는 `"MATTR_DEFAULT"` 좌표계 선택 |
+| `export_attributes` | `BoolProperty` | attribute 익스포트 여부 |
+| `exclude_hidden_attributes` | `BoolProperty` | 난 Outputplus/internal attribute 제외 여부 |
+| `excluded_attribute_names` | `StringProperty` | 추가 제외할 attribute 이름 목록 |
 
 #### 메서드
 
@@ -102,13 +105,23 @@ class MATTR_PG_export_settings(bpy.types.PropertyGroup)
 ### Public API
 
 ```python
-def write_mattr(filepath: str, obj: bpy.types.Object, coordinate_system_preset: str = "MATTR_DEFAULT") -> None
+def write_mattr(
+    filepath: str,
+    obj: bpy.types.Object,
+    coordinate_system_preset: str = "MATTR_DEFAULT",
+    export_attributes: bool = True,
+    exclude_hidden_attributes: bool = True,
+    excluded_attribute_names: str = "",
+) -> None
 ```
 
 - **입력**:
   - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
   - `obj`: 낸 장할 MESH 타입 Blender 오브젝트
   - `coordinate_system_preset`: `"BLENDER"` 또는 `"MATTR_DEFAULT"`
+  - `export_attributes`: attribute 낸 장 여부
+  - `exclude_hidden_attributes`: 난 Outputplus/internal attribute 제외 여부
+  - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
 - **동작**: 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
 - **반환**: 없음
 
@@ -129,12 +142,19 @@ class DataDescriptor
 class Topology
 ```
 - 필수 메시 데이터 5종의 `DataDescriptor`를 묶는다.
-
 ```python
 @dataclass
 class MattrFile
 ```
+
 - 전체 JSON 문서 루트. `to_dict()`로 dict로 변환한다.
+
+```python
+@dataclass
+class Attribute
+```
+
+- 일반 attribute의 JSON 표현. `name`, `domain`, `data: DataDescriptor`를 포함한다.
 
 ## `mattr_mesh.py`
 
@@ -149,6 +169,34 @@ def extract_topology(mesh: bpy.types.Mesh, converter: CoordinateConverter) -> To
 - `converter`를 통해 vertex positions는 target 좌표계로 변환된다.
 - `face_offsets`는 `mesh.polygons`의 인덱스 순서를 따른다.
 - 반환값에는 `element_counts`와 `positions`, `edges`, `corner_vertices`, `corner_edges`, `face_offsets`가 포함된다.
+
+## `mattr_attribute.py`
+
+- **역할**: Blender `bpy.types.Mesh` 데이터 블록의 attribute를 MATTR attribute로 변환한다.
+
+### Public API
+
+```python
+@dataclass
+class AttributeArrays
+```
+
+- Binary 직렬화 직전의 attribute 데이터. `name`, `domain`, `component_type`, `component_count`, `values`를 포함한다.
+
+```python
+def extract_attributes(
+    mesh: bpy.types.Mesh,
+    counts: ElementCounts,
+    export_attributes: bool = True,
+    exclude_hidden: bool = True,
+    excluded_names: Optional[Set[str]] = None,
+) -> Tuple[List[AttributeArrays], List[str]]
+```
+
+- `mesh.attributes`를 순회하여 지원하는 attribute만 추출한다.
+- 반환값은 `(attributes, warnings)` 튜플이다.
+- 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`이다.
+- `BYTE_COLOR`는 `F32×4`로 정규화한다.
 
 ## `mattr_coordinate.py`
 
@@ -188,7 +236,6 @@ def convert_matrix(self, m: Matrix) -> Matrix
 - **역할**: little-endian F32/U32 배열을 4바이트 정렬로 조립하는 binary 버퍼를 제공한다.
 
 ### Public API
-
 ```python
 class BinaryBuffer
 ```
@@ -196,13 +243,20 @@ class BinaryBuffer
 ```python
 def append_f32(self, values: Sequence[float]) -> int
 ```
+
 - F32 배열을 추가하고 시작 `byte_offset`을 반환한다.
+
+```python
+def append_i32(self, values: Sequence[int]) -> int
+```
+
+- I32 배열을 추가하고 시작 `byte_offset`을 반환한다.
 
 ```python
 def append_u32(self, values: Sequence[int]) -> int
 ```
-- U32 배열을 추가하고 시작 `byte_offset`을 반환한다.
 
+- U32 배열을 추가하고 시작 `byte_offset`을 반환한다.
 ```python
 def byte_length(self) -> int
 ```
@@ -222,7 +276,9 @@ def write(self, path: Path) -> None
 ```python
 def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
+
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
+- `attributes`에 대해 이름 중복, domain, component_type, component_count, element_count, byte offset/length를 검사한다.
 - 조건을 만족하지 않으면 `AssertionError`를 발생시킨다.
 
 ## `tests/test_phase0.py`
@@ -252,3 +308,31 @@ def main() -> None
 - Extension을 등록한다.
 - Default Cube와 빈 메시를 각각 익스포트한다.
 - `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, byte offset/length 및 element count를 확인한다.
+
+## `tests/test_phase2.py`
+
+- **역할**: Blender 백그라운드 모드에서 좌표계 변환 및 Object Transform 변환을 검증하는 테스트다.
+
+### Public API
+
+```python
+def main() -> None
+```
+
+- Extension을 등록한다.
+- Default Cube를 `MATTR_DEFAULT`와 `BLENDER` preset으로 각각 익스포트한다.
+- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, 좌표계 및 transform을 확인한다.
+
+## `tests/test_phase3.py`
+
+- **역할**: Blender 백그라운드 모드에서 attribute 익스포트를 검증하는 테스트다.
+
+### Public API
+
+```python
+def main() -> None
+```
+
+- Extension을 등록한다.
+- Default Cube, custom float/int attribute, vertex color, UV map, 빈 메시 등을 익스포트한다.
+- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, attribute descriptor 및 binary 값을 확인한다.

@@ -75,18 +75,36 @@ class TopologyData:
 
 
 @dataclass
+class Attribute:
+    """MATTR JSON의 meshes[].attributes 항목."""
+
+    name: str
+    domain: str  # "POINT" | "EDGE" | "FACE" | "CORNER"
+    data: DataDescriptor
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "name": self.name,
+            "domain": self.domain,
+            "data": self.data.to_dict(),
+        }
+
+
+@dataclass
 class Mesh:
     """MATTR JSON의 meshes 배열 항목."""
 
     name: str
     element_counts: ElementCounts
     topology: Topology
+    attributes: List[Attribute] = field(default_factory=list)
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "element_counts": self.element_counts.to_dict(),
             "topology": self.topology.to_dict(),
+            "attributes": [attr.to_dict() for attr in self.attributes],
         }
 
 

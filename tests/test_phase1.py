@@ -57,7 +57,9 @@ def test_default_cube():
 
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
-        json_path, bin_path = _export_active_object(tmpdir, "cube")
+        json_path, bin_path = _export_active_object(
+            tmpdir, "cube", export_attributes=False
+        )
 
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -98,7 +100,10 @@ def test_transformed_cube():
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
         json_path, bin_path = _export_active_object(
-            tmpdir, "transformed_cube", coordinate_system_preset="BLENDER"
+            tmpdir,
+            "transformed_cube",
+            coordinate_system_preset="BLENDER",
+            export_attributes=False,
         )
 
         with open(json_path, "r", encoding="utf-8") as f:
@@ -139,7 +144,9 @@ def test_empty_mesh():
 
     with tempfile.TemporaryDirectory() as tmpdir_str:
         tmpdir = Path(tmpdir_str)
-        json_path, bin_path = _export_active_object(tmpdir, "empty")
+        json_path, bin_path = _export_active_object(
+            tmpdir, "empty", export_attributes=False
+        )
 
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)

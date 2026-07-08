@@ -21,7 +21,7 @@ class AttributeArrays:
 
 
 # Blender data_type → (MATTR component_type, component_count, foreach_get property)
-_ATTRIBUTE_TYPE_MAP = {
+_BLENDER_TO_MATTR_TYPE_MAP = {
     "FLOAT": ("F32", 1, "value"),
     "INT": ("I32", 1, "value"),
     "FLOAT2": ("F32", 2, "vector"),
@@ -31,9 +31,18 @@ _ATTRIBUTE_TYPE_MAP = {
     "INT32_2D": ("I32", 2, "vector"),
 }
 
+# (MATTR component_type, component_count) → (Blender data_type, foreach_get property)
+_MATTR_TO_BLENDER_TYPE_MAP = {
+    ("F32", 1): ("FLOAT", "value"),
+    ("F32", 2): ("FLOAT2", "vector"),
+    ("F32", 3): ("FLOAT_VECTOR", "vector"),
+    ("I32", 1): ("INT", "value"),
+    ("I32", 2): ("INT32_2D", "vector"),
+}
+
 _SUPPORTED_DOMAINS = {"POINT", "EDGE", "FACE", "CORNER"}
 
-# 토폴로지와 중복되거나 난 Outputplus boolean flag. 경고 없이 무시한다.
+# 토폴로지와 중복되거나 내부 Outputplus boolean flag. 경고 없이 무시한다.
 _SILENTLY_SKIPPED_NAMES = {
     "position",
     "sharp_edge",
@@ -58,7 +67,7 @@ def extract_attributes(
     exclude_hidden: bool = True,
     excluded_names: Optional[Set[str]] = None,
 ) -> Tuple[List[AttributeArrays], List[str]]:
-    """Blender mesh에서 MATTR로 낼 장할 attribute 배열을 추출한다.
+    """Blender mesh에서 MATTR로 내보낼 attribute 배열을 추출한다.
 
     Returns:
         (attributes, warnings): 추출된 attribute 목록과 사용자에게 보여줄 경고 메시지 목록
@@ -88,7 +97,7 @@ def extract_attributes(
             )
             continue
 
-        type_info = _ATTRIBUTE_TYPE_MAP.get(data_type)
+        type_info = _BLENDER_TO_MATTR_TYPE_MAP.get(data_type)
         if type_info is None:
             warnings.append(
                 f"Skipping attribute '{name}': unsupported data type '{data_type}'"
@@ -139,7 +148,7 @@ def _read_attribute_values(
         attribute.data.foreach_get(prop_name, buf)
         return list(buf)
 
-    component_type = _ATTRIBUTE_TYPE_MAP[data_type][0]
+    component_type = _BLENDER_TO_MATTR_TYPE_MAP[data_type][0]
     if component_type == "F32":
         buf = array.array("f", [0.0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
@@ -150,3 +159,29 @@ def _read_attribute_values(
         return list(buf)
 
     raise RuntimeError(f"Unhandled attribute data type: {data_type}")
+
+
+def mattr_component_type_to_blender(
+    component_type: str, component_count: int, use_byte_color: bool = False
+) -> Tuple[str, str]:
+    """MATTR attribute descriptor를 Blender attribute type으로 변환한다.
+
+    Returns:
+        (blender_data_type, prop_name): Blender attribute 생성 및 쓰기에 사용할
+        data_type과 foreach_set/foreach_get property 이름.
+
+    Raises:
+        ValueError: 지원하지 않는 (component_type, component_count) 조합일 경우.
+    """
+    key = (component_type, component_count)
+    if component_type == "F32" and component_count == 4:
+        if use_byte_color:
+            return "BYTE_COLOR", "color"
+        return "FLOAT_COLOR", "color"
+
+    result = _MATTR_TO_BLENDER_TYPE_MAP.get(key)
+    if result is None:
+        raise ValueError(
+            f"Unsupported MATTR attribute type: ({component_type}, {component_count})"
+        )
+    return result

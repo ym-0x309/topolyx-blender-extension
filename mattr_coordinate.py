@@ -33,11 +33,12 @@ _PRESETS: Dict[str, CoordinateSystem] = {
 
 
 class CoordinateConverter:
-    """Blender coordinate system에서 target coordinate system으로 변환한다.
+    """Blender coordinate system과 target coordinate system 사이를 양방향으로 변환한다.
 
     변환 행렬 M_cs는 ``p_target = M_cs @ p_blender``를 만족하도록 정의한다.
     Blender world matrix를 target world matrix로 변환할 때는
-    ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용한다.
+    ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용하며,
+    역변환은 ``M_blender = M_cs^-1 @ M_target @ M_cs``를 적용한다.
     """
 
     def __init__(self, preset: str) -> None:
@@ -52,6 +53,8 @@ class CoordinateConverter:
         self._validate_target()
         self._matrix_3x3 = self._build_conversion_matrix()
         self._matrix_4x4 = self._matrix_3x3.to_4x4()
+        self._matrix_3x3_inv = self._matrix_3x3.inverted()
+        self._matrix_4x4_inv = self._matrix_4x4.inverted()
 
     def _validate_target(self) -> None:
         cs = self.target
@@ -108,6 +111,16 @@ class CoordinateConverter:
 
     def convert_matrix(self, m: Matrix) -> Matrix:
         """Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다."""
-        cs = self._matrix_4x4
-        cs_inv = cs.inverted()
-        return cs @ m @ cs_inv
+        return self._matrix_4x4 @ m @ self._matrix_4x4_inv
+
+    def inverse_convert_position(self, v: Vector) -> Vector:
+        """target local/world position을 Blender local/world position으로 변환한다."""
+        return self._matrix_3x3_inv @ v
+
+    def inverse_convert_direction(self, v: Vector) -> Vector:
+        """target 방향 벡터를 Blender 방향 벡터로 변환한다. (translation 없음)"""
+        return self._matrix_3x3_inv @ v
+
+    def inverse_convert_matrix(self, m: Matrix) -> Matrix:
+        """target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다."""
+        return self._matrix_4x4_inv @ m @ self._matrix_4x4

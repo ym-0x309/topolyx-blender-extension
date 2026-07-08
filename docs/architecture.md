@@ -21,7 +21,7 @@
 ```python
 classes: list[type]
 ```
-- 등록할 Operator 및 PropertyGroup 클래스 목록
+- 등록할 Operator 클래스 목록
 
 ```python
 def menu_func(self: bpy.types.Menu, context: bpy.types.Context) -> None
@@ -61,11 +61,10 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `bl_label` | `str` | UI에 표시되는 이름 |
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
-| `use_setting` | `BoolProperty` | 예시 옵션(향후 확장용) |
 | `use_selection` | `BoolProperty` | `True`면 선택된 오브젝트만, `False`면 씬의 모든 메시 오브젝트 익스포트 |
 | `coordinate_system_preset` | `EnumProperty` | `"BLENDER"` 또는 `"MATTR_DEFAULT"` 좌표계 선택 |
 | `export_attributes` | `BoolProperty` | attribute 익스포트 여부 |
-| `exclude_hidden_attributes` | `BoolProperty` | 난 Outputplus/internal attribute 제외 여부 |
+| `exclude_hidden_attributes` | `BoolProperty` | 내부 Outputplus/internal attribute 제외 여부 |
 | `excluded_attribute_names` | `StringProperty` | 추가 제외할 attribute 이름 목록 |
 
 #### 메서드
@@ -78,26 +77,15 @@ def check(self, context: bpy.types.Context) -> bool
 ```python
 def draw(self, context: bpy.types.Context) -> None
 ```
-- 파일 저장 대화상자 왼쪽 패널에 좌표계 옵션을 그린다.
+- 파일 저장 대화상자 왼쪽 패널에 옵션을 그린다.
 
 ```python
 def execute(self, context: bpy.types.Context) -> set[str]
 ```
 - 선택된 오브젝트와 설정을 기반으로 익스포트를 수행한다.
+- 익스포트 중 발생한 경고를 수집하여 UI에 리포트한다.
+- 익스포트 완료 후 `mattr_validator.validate_mattr_file()`로 출력을 검증한다.
 - 성공 시 `{'FINISHED'}`를 반환한다.
-
-## `mattr_properties.py`
-
-- **역할**: 익스포트 옵션을 저장하는 `PropertyGroup`을 정의한다. Phase 2까지는 Operator에 직접 속성을 두고, 이 그룹은 확장용으로 등록만 되어 있다.
-
-### Public API
-
-```python
-class MATTR_PG_export_settings(bpy.types.PropertyGroup)
-```
-
-- Blender의 PropertyGroup 메커니즘을 통해 익스포트 UI 옵션을 노출할 수 있는 컨테이너다.
-- 향후 attribute 필터 등이 추가될 예정이다.
 
 ## `mattr_writer.py`
 
@@ -113,37 +101,59 @@ def write_mattr(
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
-) -> None
+) -> List[str]
 ```
 
 - **입력**:
   - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
-  - `objects`: 낸 장할 MESH 타입 Blender 오브젝트 목록
+  - `objects`: 내보낼 MESH 타입 Blender 오브젝트 목록
   - `coordinate_system_preset`: `"BLENDER"` 또는 `"MATTR_DEFAULT"`
-  - `export_attributes`: attribute 낸 장 여부
-  - `exclude_hidden_attributes`: 난 Outputplus/internal attribute 제외 여부
+  - `export_attributes`: attribute 내보내기 여부
+  - `exclude_hidden_attributes`: 내부 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
 - **동작**:
   - 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
   - `objects`를 순회하며 메시 데이터 블록을 기준으로 중복을 제거한다.
   - 동일한 메시를 참조하는 오브젝트는 `meshes` 배열에서 한 번만 기록된다.
-- **반환**: 없음
+- **반환**: 내보내는 중 발생한 경고 메시지 목록
 
 ```python
 def _append_mesh(
     buffer: BinaryBuffer,
     mesh_name: str,
     topology_data: TopologyData,
-    attribute_arrays: Sequence[AttributeArrays],
+    attribute_arrays: Sequence[AttributeArrays]
 ) -> Mesh
 ```
 
 - 하나의 메시에 대해 topology 5종 배열과 일반 attribute 배열을 `BinaryBuffer`에 추가한다.
 - 추가된 배열의 descriptor를 포함하는 `Mesh` 객체를 반환한다.
 
+## `mattr_reader.py`
+
+- **역할**: MATTR `.mattr.json` + `.mattr.bin` 파일 쌍을 읽어 `MattrFile` 데이터 모델과 raw binary bytes로 복원한다.
+
+### Public API
+
+```python
+def read_mattr(json_path: str | Path) -> Tuple[MattrFile, bytes]
+```
+
+- 지정한 JSON 경로와 동일한 basename의 `.mattr.bin` 파일을 함께 읽는다.
+- `mattr_validator.validate_mattr()`로 검증한 후 `MattrFile.from_dict()`를 통해 파싱한다.
+- 검증 실패 시 `MattrValidationError`를 발생시킨다.
+
+```python
+def read_mattr_from_data(json_data: dict, bin_data: bytes) -> MattrFile
+```
+
+- 이미 메모리에 로드된 JSON dict와 binary bytes에서 `MattrFile`을 생성한다.
+- `validate_mattr()`을 먼저 호출한다.
+
 ## `mattr_types.py`
 
 - **역할**: MATTR JSON을 표현하는 데이터 클래스(`DataDescriptor`, `Topology`, `Mesh`, `ObjectEntry`, `MattrFile` 등)를 정의한다.
+- 각 dataclass는 `to_dict()`와 역직렬화용 `from_dict()`를 제공한다.
 
 ### Public API
 
@@ -158,6 +168,7 @@ class DataDescriptor
 class Topology
 ```
 - 필수 메시 데이터 5종의 `DataDescriptor`를 묶는다.
+
 ```python
 @dataclass
 class MattrFile
@@ -171,6 +182,13 @@ class Attribute
 ```
 
 - 일반 attribute의 JSON 표현. `name`, `domain`, `data: DataDescriptor`를 포함한다.
+
+```python
+@dataclass
+class Header
+```
+
+- `format`은 `"MATTR"`, `version`은 `"0.1.0"`이다.
 
 ## `mattr_mesh.py`
 
@@ -214,9 +232,19 @@ def extract_attributes(
 - 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`이다.
 - `BYTE_COLOR`는 `F32×4`로 정규화한다.
 
+```python
+def mattr_component_type_to_blender(
+    component_type: str, component_count: int, use_byte_color: bool = False
+) -> Tuple[str, str]
+```
+
+- MATTR의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
+- `F32×4`는 기본적으로 `FLOAT_COLOR`로 환산되며, `use_byte_color=True`이면 `BYTE_COLOR`로 환산한다.
+- 지원하지 않는 조합이면 `ValueError`를 발생시킨다.
+
 ## `mattr_coordinate.py`
 
-- **역할**: Blender 좌표계에서 MATTR 목표 좌표계로 변환하는 변환기를 제공한다.
+- **역할**: Blender 좌표계와 MATTR 목표 좌표계 사이를 양방향으로 변환하는 변환기를 제공한다.
 
 ### Public API
 
@@ -247,9 +275,37 @@ def convert_matrix(self, m: Matrix) -> Matrix
 - Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다.
 - ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용한다.
 
+```python
+def inverse_convert_position(self, v: Vector) -> Vector
+```
+- target local/world position을 Blender local/world position으로 변환한다.
+
+```python
+def inverse_convert_matrix(self, m: Matrix) -> Matrix
+```
+- target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다.
+- ``M_blender = M_cs^-1 @ M_target @ M_cs``를 적용한다.
+
+## `mattr_utils.py`
+
+- **역할**: 익스포터와 향후 임포터가 공유하는 작은 유틸리티 함수를 제공한다.
+
+### Public API
+
+```python
+def matrix_to_column_major_list(matrix: Matrix) -> List[float]
+```
+- `mathutils.Matrix`를 column-major 순서의 16개 float list로 직렬화한다.
+
+```python
+def column_major_list_to_matrix(values: Sequence[float]) -> Matrix
+```
+- column-major 16개 float list를 `mathutils.Matrix`로 복원한다.
+- 길이가 16이 아니면 `ValueError`를 발생시킨다.
+
 ## `mattr_binary.py`
 
-- **역할**: little-endian F32/U32 배열을 4바이트 정렬로 조립하는 binary 버퍼를 제공한다.
+- **역할**: little-endian F32/I32/U32 배열을 4바이트 정렬로 조립하는 binary 버퍼와, 기록된 버퍼를 읽는 reader를 제공한다.
 
 ### Public API
 ```python
@@ -273,15 +329,40 @@ def append_u32(self, values: Sequence[int]) -> int
 ```
 
 - U32 배열을 추가하고 시작 `byte_offset`을 반환한다.
+
 ```python
 def byte_length(self) -> int
 ```
 - 현재 버퍼의 총 byte 길이를 반환한다.
 
 ```python
+def to_bytes(self) -> bytes
+```
+- 현재 버퍼의 내용을 `bytes`로 반환한다.
+
+```python
 def write(self, path: Path) -> None
 ```
 - 버퍼 내용을 파일에 쓴다.
+
+```python
+class BinaryBufferReader
+```
+
+```python
+def read_f32(self, offset: int, count: int) -> array.array
+```
+- 지정한 offset부터 count개의 F32 값을 읽어 반환한다.
+
+```python
+def read_i32(self, offset: int, count: int) -> array.array
+```
+- 지정한 offset부터 count개의 I32 값을 읽어 반환한다.
+
+```python
+def read_u32(self, offset: int, count: int) -> array.array
+```
+- 지정한 offset부터 count개의 U32 값을 읽어 반환한다.
 
 ## `mattr_validator.py`
 
@@ -290,79 +371,146 @@ def write(self, path: Path) -> None
 ### Public API
 
 ```python
+class MattrValidationError(Exception)
+```
+
+- 검증 실패 시 발생하는 예외.
+
+```python
 def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
 
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
+- `header.version`의 major 버전이 지원 버전(`0.1.0` → `0`)과 일치하는지 검사한다.
 - `attributes`에 대해 이름 중복, domain, component_type, component_count, element_count, byte offset/length를 검사한다.
-- 조건을 만족하지 않으면 `AssertionError`를 발생시킨다.
+- descriptor의 `byte_offset`과 `byte_length`가 음수가 아닌지 검사한다.
+- 조건을 만족하지 않으면 `MattrValidationError`를 발생시킨다.
+
+```python
+def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> None
+```
+
+- JSON 파일 경로를 기준으로 `.mattr.json` + `.mattr.bin` 파일 쌍을 읽어 검증한다.
+- `bin_path`를 생략하면 `json_path`와 동일한 basename의 `.mattr.bin`을 사용한다.
+
+## `tests/common.py`
+
+- **역할**: 테스트에서 공통으로 사용하는 헬퍼 함수 모음.
+
+### Public API
+
+```python
+ADDON_MODULE: str
+```
+- 애드온 모듈 이름 `"blender_mattr_exporter"`.
+
+```python
+def reset_addon() -> module
+```
+- 소스 디렉터리의 애드온을 등록하고 반환한다.
+
+```python
+def clear_scene() -> None
+```
+- 현재 씬의 모든 오브젝트를 삭제한다.
+
+```python
+def select_only(objs: Sequence[bpy.types.Object]) -> None
+```
+- 지정한 오브젝트들만 선택하고 active를 마지막으로 설정한다.
+
+```python
+def export_active_object(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+```
+- active object를 익스포트하고 JSON/bin 경로를 반환한다.
+
+```python
+def export_selected(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+```
+- 선택된 오브젝트들을 익스포트하고 JSON/bin 경로를 반환한다.
+
+```python
+def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+```
+- 씬의 모든 메시 오브젝트를 익스포트하고 JSON/bin 경로를 반환한다.
+
+```python
+def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]
+```
+- JSON과 binary를 읽어 `validate_mattr`로 검증 후 반환한다.
+
+```python
+def find_attribute(data: dict, name: str, mesh_index: int = 0) -> dict
+```
+- 지정한 mesh의 attributes에서 이름으로 attribute를 찾는다.
+
+```python
+def find_object(data: dict, name: str) -> dict
+```
+- objects 배열에서 이름으로 object entry를 찾는다.
+
+```python
+def find_mesh(data: dict, name: str) -> dict
+```
+- meshes 배열에서 이름으로 mesh entry를 찾는다.
+
+```python
+def assert_f32_values(bin_data: bytes, desc: dict, expected: Sequence[float]) -> None
+```
+- binary에서 descriptor 위치의 F32 값이 expected와 일치하는지 확인한다.
+
+```python
+def assert_i32_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> None
+```
+- binary에서 descriptor 위치의 I32 값이 expected와 일치하는지 확인한다.
+
+```python
+def assert_u32_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> None
+```
+- binary에서 descriptor 위치의 U32 값이 expected와 일치하는지 확인한다.
+
+```python
+def tempdir() -> Path
+```
+- 테스트용 임시 디렉터리를 Path 객체로 반환한다.
+
+## `tests/run_all.py`
+
+- **역할**: Blender 백그라운드 모드에서 Phase 0~6 테스트를 순차 실행하는 통합 러너.
+
+### Public API
+
+```python
+def main() -> int
+```
+
+- Phase 0~6 테스트 모듈을 순차 실행한다.
+- 모든 테스트가 통과하면 `0`, 실패하면 `1`을 반환한다.
 
 ## `tests/test_phase0.py`
 
-- **역할**: Blender 백그라운드 모드에서 Extension 등록과 Operator 호출을 검증하는 smoke test다.
-
-### Public API
-
-```python
-def main() -> None
-```
-
-- Extension을 등록한다.
-- 임시 디렉터리에 `.mattr.json` 경로를 지정하여 Operator를 호출한다.
-- Operator가 `{'FINISHED'}`를 반환하는지 검증한다.
+- **역할**: Blender 백그라운드 모드에서 Extension 등록과 Operator 호출을 검증하는 smoke test.
 
 ## `tests/test_phase1.py`
 
-- **역할**: Blender 백그라운드 모드에서 Default Cube 및 빈 메시의 토폴로지 익스포트를 검증하는 테스트다.
-
-### Public API
-
-```python
-def main() -> None
-```
-
-- Extension을 등록한다.
-- Default Cube와 빈 메시를 각각 익스포트한다.
-- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, byte offset/length 및 element count를 확인한다.
+- **역할**: Blender 백그라운드 모드에서 Default Cube 및 빈 메시의 토폴로지 익스포트를 검증.
 
 ## `tests/test_phase2.py`
 
-- **역할**: Blender 백그라운드 모드에서 좌표계 변환 및 Object Transform 변환을 검증하는 테스트다.
-
-### Public API
-
-```python
-def main() -> None
-```
-
-- Extension을 등록한다.
-- Default Cube를 `MATTR_DEFAULT`와 `BLENDER` preset으로 각각 익스포트한다.
-- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, 좌표계 및 transform을 확인한다.
+- **역할**: Blender 백그라운드 모드에서 좌표계 변환 및 Object Transform 변환을 검증.
 
 ## `tests/test_phase3.py`
 
-- **역할**: Blender 백그라운드 모드에서 attribute 익스포트를 검증하는 테스트다.
-
-### Public API
-
-```python
-def main() -> None
-```
-
-- Extension을 등록한다.
-- Default Cube, custom float/int attribute, vertex color, UV map, 빈 메시 등을 익스포트한다.
-- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, attribute descriptor 및 binary 값을 확인한다.
+- **역할**: Blender 백그라운드 모드에서 attribute 익스포트를 검증.
 
 ## `tests/test_phase4.py`
 
-- **역할**: Blender 백그라운드 모드에서 다중 오브젝트 익스포트와 메시 공유를 검증하는 테스트다.
+- **역할**: Blender 백그라운드 모드에서 다중 오브젝트 익스포트와 메시 공유를 검증.
 
-### Public API
+## `tests/test_phase5.py`
 
-```python
-def main() -> None
-```
+- **역할**: Blender 백그라운드 모드에서 N-gon, loose geometry, EDGE domain attribute, 다중 attribute, 음수 integer, 큰 좌표값 등 엣지 케이스와 validator 강화를 검증.
 
-- Extension을 등록한다.
-- 서로 다른 메시를 가진 여러 오브젝트, 링크 복제로 공유된 메시, 선택/비선택 오브젝트, 비메시 오브젝트 스킵, 빈 메시 포함 등을 검증한다.
-- `mattr_validator.validate_mattr()`로 출력 파일을 검증하고, `objects`/`meshes` 구조 및 `objects[].index` 공유를 확인한다.
+## `tests/test_phase6.py`
+
+- **역할**: Blender 백그라운드 모드에서 양방향 좌표 변환, 행렬 직렬화/역직렬화, binary reader, attribute 역매핑, `mattr_reader`를 검증.

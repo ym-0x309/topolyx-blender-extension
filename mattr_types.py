@@ -1,4 +1,4 @@
-"""MATTR 포맷 v0.0.1에 사용하는 데이터 모델."""
+"""MATTR 포맷 v0.1.0에 사용하는 데이터 모델."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -23,6 +23,16 @@ class DataDescriptor:
             "element_count": self.element_count,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "DataDescriptor":
+        return cls(
+            byte_offset=data["byte_offset"],
+            byte_length=data["byte_length"],
+            component_type=data["component_type"],
+            component_count=data["component_count"],
+            element_count=data["element_count"],
+        )
+
 
 @dataclass
 class Topology:
@@ -43,6 +53,16 @@ class Topology:
             "face_offsets": self.face_offsets.to_dict(),
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Topology":
+        return cls(
+            positions=DataDescriptor.from_dict(data["positions"]),
+            edges=DataDescriptor.from_dict(data["edges"]),
+            corner_vertices=DataDescriptor.from_dict(data["corner_vertices"]),
+            corner_edges=DataDescriptor.from_dict(data["corner_edges"]),
+            face_offsets=DataDescriptor.from_dict(data["face_offsets"]),
+        )
+
 
 @dataclass
 class ElementCounts:
@@ -60,6 +80,15 @@ class ElementCounts:
             "faces": self.faces,
             "corners": self.corners,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, int]) -> "ElementCounts":
+        return cls(
+            vertices=data["vertices"],
+            edges=data["edges"],
+            faces=data["faces"],
+            corners=data["corners"],
+        )
 
 
 @dataclass
@@ -89,6 +118,14 @@ class Attribute:
             "data": self.data.to_dict(),
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Attribute":
+        return cls(
+            name=data["name"],
+            domain=data["domain"],
+            data=DataDescriptor.from_dict(data["data"]),
+        )
+
 
 @dataclass
 class Mesh:
@@ -106,6 +143,17 @@ class Mesh:
             "topology": self.topology.to_dict(),
             "attributes": [attr.to_dict() for attr in self.attributes],
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Mesh":
+        return cls(
+            name=data["name"],
+            element_counts=ElementCounts.from_dict(data["element_counts"]),
+            topology=Topology.from_dict(data["topology"]),
+            attributes=[
+                Attribute.from_dict(attr) for attr in data.get("attributes", [])
+            ],
+        )
 
 
 @dataclass
@@ -125,6 +173,15 @@ class ObjectEntry:
             "transform": self.transform,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "ObjectEntry":
+        return cls(
+            name=data["name"],
+            type=data["type"],
+            index=data["index"],
+            transform=list(data["transform"]),
+        )
+
 
 @dataclass
 class Header:
@@ -135,6 +192,10 @@ class Header:
 
     def to_dict(self) -> Dict[str, str]:
         return {"format": self.format, "version": self.version}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, str]) -> "Header":
+        return cls(format=data["format"], version=data["version"])
 
 
 @dataclass
@@ -156,6 +217,16 @@ class CoordinateSystem:
             "meters_per_unit": self.meters_per_unit,
         }
 
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "CoordinateSystem":
+        return cls(
+            up_axis=data["up_axis"],
+            forward_axis=data["forward_axis"],
+            handedness=data["handedness"],
+            winding=data["winding"],
+            meters_per_unit=data["meters_per_unit"],
+        )
+
 
 @dataclass
 class Buffer:
@@ -166,6 +237,10 @@ class Buffer:
 
     def to_dict(self) -> Dict[str, Any]:
         return {"uri": self.uri, "byte_length": self.byte_length}
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "Buffer":
+        return cls(uri=data["uri"], byte_length=data["byte_length"])
 
 
 @dataclass
@@ -186,3 +261,13 @@ class MattrFile:
             "objects": [obj.to_dict() for obj in self.objects],
             "meshes": [mesh.to_dict() for mesh in self.meshes],
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "MattrFile":
+        return cls(
+            header=Header.from_dict(data["header"]),
+            buffer=Buffer.from_dict(data["buffer"]),
+            coordinate_system=CoordinateSystem.from_dict(data["coordinate_system"]),
+            objects=[ObjectEntry.from_dict(obj) for obj in data["objects"]],
+            meshes=[Mesh.from_dict(mesh) for mesh in data["meshes"]],
+        )

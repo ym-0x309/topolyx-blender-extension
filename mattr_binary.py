@@ -1,5 +1,6 @@
-"""MATTR binary buffer 작성 유틸리티."""
+"""MATTR binary buffer 작성/읽기 유틸리티."""
 
+import array
 import struct
 from pathlib import Path
 from typing import Sequence
@@ -21,28 +22,77 @@ class BinaryBuffer:
         """F32 배열을 추가하고 시작 byte offset을 반환한다."""
         self._align(4)
         offset = len(self._data)
-        self._data.extend(struct.pack(f"<{len(values)}f", *values))
+        buf = values if isinstance(values, array.array) else array.array("f", values)
+        self._data.extend(buf.tobytes())
         return offset
 
     def append_i32(self, values: Sequence[int]) -> int:
         """I32 배열을 추가하고 시작 byte offset을 반환한다."""
         self._align(4)
         offset = len(self._data)
-        self._data.extend(struct.pack(f"<{len(values)}i", *values))
+        buf = values if isinstance(values, array.array) else array.array("i", values)
+        self._data.extend(buf.tobytes())
         return offset
 
     def append_u32(self, values: Sequence[int]) -> int:
         """U32 배열을 추가하고 시작 byte offset을 반환한다."""
         self._align(4)
         offset = len(self._data)
-        self._data.extend(struct.pack(f"<{len(values)}I", *values))
+        buf = values if isinstance(values, array.array) else array.array("I", values)
+        self._data.extend(buf.tobytes())
         return offset
 
     def byte_length(self) -> int:
         """현재 버퍼의 총 byte 길이를 반환한다."""
         return len(self._data)
 
+    def to_bytes(self) -> bytes:
+        """버퍼 내용을 bytes로 반환한다."""
+        return bytes(self._data)
+
     def write(self, path: Path) -> None:
         """버퍼 내용을 지정한 경로에 쓴다."""
         with open(path, "wb") as f:
             f.write(self._data)
+
+
+class BinaryBufferReader:
+    """4바이트 정렬된 little-endian scalar 배열을 읽는 reader."""
+
+    def __init__(self, data: bytes) -> None:
+        self._data = data
+
+    def _check_bounds(self, offset: int, length: int) -> None:
+        """읽으려는 범위가 버퍼 안에 있는지 확인한다."""
+        if offset < 0:
+            raise ValueError(f"offset must be non-negative, got {offset}")
+        end = offset + length
+        if end > len(self._data):
+            raise ValueError(
+                f"read out of bounds: {offset} + {length} > {len(self._data)}"
+            )
+
+    def read_f32(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 F32 값을 읽어 array.array('f')로 반환한다."""
+        if count == 0:
+            return array.array("f")
+        self._check_bounds(offset, count * 4)
+        return array.array("f", self._data[offset : offset + count * 4])
+
+    def read_i32(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 I32 값을 읽어 array.array('i')로 반환한다."""
+        if count == 0:
+            return array.array("i")
+        self._check_bounds(offset, count * 4)
+        return array.array("i", self._data[offset : offset + count * 4])
+
+    def read_u32(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 U32 값을 읽어 array.array('I')로 반환한다."""
+        if count == 0:
+            return array.array("I")
+        self._check_bounds(offset, count * 4)
+        return array.array("I", self._data[offset : offset + count * 4])
+
+    def __len__(self) -> int:
+        """버퍼의 총 byte 길이를 반환한다."""
+        return len(self._data)

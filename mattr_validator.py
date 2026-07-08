@@ -1,6 +1,9 @@
 """MATTR 출력 파일의 유효성을 검증한다."""
 
+import json
+import re
 import struct
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 
@@ -10,6 +13,44 @@ _COMPONENT_SIZES = {
     "U32": 4,
 }
 
+_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+
+# 이 익스포터/리더가 지원하는 MATTR 포맷 버전.
+_SUPPORTED_VERSION = "0.1.0"
+_SUPPORTED_MAJOR_VERSION = _SUPPORTED_VERSION.split(".")[0]
+
+# 64-bit unsigned 최대값. byte_offset + byte_length overflow를 방지하기 위한 상한.
+_MAX_BUFFER_OFFSET = 2**64 - 1
+
+
+class MattrValidationError(Exception):
+    """MATTR 파일이 명세 조건을 만족하지 않을 때 발생하는 예외."""
+
+    pass
+
+
+def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> None:
+    """JSON 파일 경로를 기준으로 MATTR 파일 쌍을 검증한다.
+
+    bin_path가 주어지지 않으면 json_path와 동일한 basename의 .mattr.bin 파일을 사용한다.
+    """
+    json_path = Path(json_path)
+    if bin_path is None:
+        bin_path = json_path.with_name(json_path.stem + ".bin")
+    else:
+        bin_path = Path(bin_path)
+
+    if not json_path.exists():
+        raise MattrValidationError(f"JSON file not found: {json_path}")
+    if not bin_path.exists():
+        raise MattrValidationError(f"Binary file not found: {bin_path}")
+
+    with open(json_path, "r", encoding="utf-8") as f:
+        json_data = json.load(f)
+    bin_data = bin_path.read_bytes()
+
+    validate_mattr(json_data, bin_data)
+
 
 def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
     """JSON 메타데이터와 binary 데이터가 명세 조건을 만족하는지 검증한다."""
@@ -17,65 +58,149 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
     _validate_buffer(json_data, bin_data)
     _validate_coordinate_system(json_data)
 
-    for mesh in json_data["meshes"]:
-        _validate_mesh(mesh, bin_data)
+    mesh_count = len(json_data["meshes"])
+    for mesh_index, mesh in enumerate(json_data["meshes"]):
+        _validate_mesh(mesh, bin_data, mesh_index)
 
-    for obj in json_data["objects"]:
-        _validate_object(obj, len(json_data["meshes"]))
+    for obj_index, obj in enumerate(json_data["objects"]):
+        _validate_object(obj, mesh_count, obj_index)
+
+
+def _fail(message: str) -> None:
+    """MattrValidationError를 발생시킨다."""
+    raise MattrValidationError(message)
 
 
 def _validate_header(json_data: Dict[str, Any]) -> None:
-    header = json_data["header"]
-    assert header["format"] == "MATTR", f"Unexpected format: {header['format']}"
-    assert header["version"] == "0.1.0", f"Unexpected version: {header['version']}"
+    header = json_data.get("header")
+    if header is None:
+        _fail("Missing 'header' field")
+
+    fmt = header.get("format")
+    if fmt != "MATTR":
+        _fail(f"Unexpected header.format: {fmt!r} (expected 'MATTR')")
+
+    version = header.get("version")
+    if version is None:
+        _fail("Missing header.version")
+    if not isinstance(version, str) or not _VERSION_PATTERN.match(version):
+        _fail(f"header.version must be in x.y.z format, got: {version!r}")
+
+    major = version.split(".")[0]
+    if major != _SUPPORTED_MAJOR_VERSION:
+        _fail(
+            f"Unsupported major version: {version!r} "
+            f"(supported major version: {_SUPPORTED_MAJOR_VERSION}.x.x)"
+        )
 
 
 def _validate_buffer(json_data: Dict[str, Any], bin_data: bytes) -> None:
-    buffer = json_data["buffer"]
-    assert buffer["byte_length"] == len(bin_data), (
-        f"Buffer byte_length mismatch: {buffer['byte_length']} vs {len(bin_data)}"
-    )
+    buffer = json_data.get("buffer")
+    if buffer is None:
+        _fail("Missing 'buffer' field")
+
+    byte_length = buffer.get("byte_length")
+    if byte_length != len(bin_data):
+        _fail(
+            f"buffer.byte_length mismatch: {byte_length} vs actual binary length {len(bin_data)}"
+        )
+
+    uri = buffer.get("uri")
+    if uri is None or not isinstance(uri, str) or not uri:
+        _fail("buffer.uri must be a non-empty string")
 
 
 def _validate_coordinate_system(json_data: Dict[str, Any]) -> None:
-    cs = json_data["coordinate_system"]
-    assert cs["handedness"] in ("RIGHT", "LEFT")
-    assert cs["winding"] in ("CW", "CCW")
+    cs = json_data.get("coordinate_system")
+    if cs is None:
+        _fail("Missing 'coordinate_system' field")
+
+    handedness = cs.get("handedness")
+    if handedness not in ("RIGHT", "LEFT"):
+        _fail(f"coordinate_system.handedness must be 'RIGHT' or 'LEFT', got: {handedness!r}")
+
+    winding = cs.get("winding")
+    if winding not in ("CW", "CCW"):
+        _fail(f"coordinate_system.winding must be 'CW' or 'CCW', got: {winding!r}")
 
     valid_axes = ("+X", "-X", "+Y", "-Y", "+Z", "-Z")
-    up = cs["up_axis"]
-    forward = cs["forward_axis"]
-    assert up in valid_axes, f"Invalid up_axis: {up}"
-    assert forward in valid_axes, f"Invalid forward_axis: {forward}"
-    assert up[1] != forward[1], (
-        f"up_axis and forward_axis must not be parallel: {up}, {forward}"
-    )
+    up = cs.get("up_axis")
+    forward = cs.get("forward_axis")
+    if up not in valid_axes:
+        _fail(f"Invalid coordinate_system.up_axis: {up!r}")
+    if forward not in valid_axes:
+        _fail(f"Invalid coordinate_system.forward_axis: {forward!r}")
+    if up[1] == forward[1]:
+        _fail(f"up_axis and forward_axis must not be parallel: {up}, {forward}")
+
+    meters_per_unit = cs.get("meters_per_unit")
+    if not isinstance(meters_per_unit, (int, float)) or meters_per_unit <= 0:
+        _fail(f"coordinate_system.meters_per_unit must be positive, got: {meters_per_unit!r}")
 
 
-def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes) -> None:
-    counts = mesh["element_counts"]
-    topo = mesh["topology"]
+def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes, mesh_index: int) -> None:
+    prefix = f"meshes[{mesh_index}]"
+
+    counts = mesh.get("element_counts")
+    if counts is None:
+        _fail(f"{prefix}: missing 'element_counts'")
+
+    required_counts = ("vertices", "edges", "faces", "corners")
+    for key in required_counts:
+        if key not in counts:
+            _fail(f"{prefix}: missing element_counts.{key}")
+        if not isinstance(counts[key], int) or counts[key] < 0:
+            _fail(f"{prefix}: element_counts.{key} must be a non-negative integer")
+
+    topo = mesh.get("topology")
+    if topo is None:
+        _fail(f"{prefix}: missing 'topology'")
 
     _validate_descriptor(
-        topo["positions"], bin_data, expected_component="F32", expected_count=3, expected_elements=counts["vertices"]
+        topo["positions"],
+        bin_data,
+        prefix=f"{prefix}.topology.positions",
+        expected_component="F32",
+        expected_count=3,
+        expected_elements=counts["vertices"],
     )
     _validate_descriptor(
-        topo["edges"], bin_data, expected_component="U32", expected_count=2, expected_elements=counts["edges"]
+        topo["edges"],
+        bin_data,
+        prefix=f"{prefix}.topology.edges",
+        expected_component="U32",
+        expected_count=2,
+        expected_elements=counts["edges"],
     )
     _validate_descriptor(
-        topo["corner_vertices"], bin_data, expected_component="U32", expected_count=1, expected_elements=counts["corners"]
+        topo["corner_vertices"],
+        bin_data,
+        prefix=f"{prefix}.topology.corner_vertices",
+        expected_component="U32",
+        expected_count=1,
+        expected_elements=counts["corners"],
     )
     _validate_descriptor(
-        topo["corner_edges"], bin_data, expected_component="U32", expected_count=1, expected_elements=counts["corners"]
+        topo["corner_edges"],
+        bin_data,
+        prefix=f"{prefix}.topology.corner_edges",
+        expected_component="U32",
+        expected_count=1,
+        expected_elements=counts["corners"],
     )
     _validate_descriptor(
-        topo["face_offsets"], bin_data, expected_component="U32", expected_count=1, expected_elements=counts["faces"] + 1
+        topo["face_offsets"],
+        bin_data,
+        prefix=f"{prefix}.topology.face_offsets",
+        expected_component="U32",
+        expected_count=1,
+        expected_elements=counts["faces"] + 1,
     )
 
-    _validate_face_offsets(topo["face_offsets"], counts, bin_data)
-    _validate_index_ranges(topo, counts, bin_data)
-    _validate_corner_edge_consistency(topo, counts, bin_data)
-    _validate_attributes(mesh, bin_data)
+    _validate_face_offsets(topo["face_offsets"], counts, bin_data, prefix)
+    _validate_index_ranges(topo, counts, bin_data, prefix)
+    _validate_corner_edge_consistency(topo, counts, bin_data, prefix)
+    _validate_attributes(mesh, bin_data, prefix)
 
 
 _DOMAIN_COUNT_KEY = {
@@ -89,65 +214,119 @@ _DOMAIN_COUNT_KEY = {
 def _validate_descriptor(
     desc: Dict[str, Any],
     bin_data: bytes,
+    prefix: str,
     expected_component: Optional[str],
     expected_count: Optional[int],
     expected_elements: int,
 ) -> None:
-    assert desc["byte_offset"] % 4 == 0, f"Misaligned byte_offset: {desc['byte_offset']}"
-    assert desc["component_type"] in _COMPONENT_SIZES, (
-        f"Invalid component_type: {desc['component_type']}"
-    )
-    if expected_component is not None:
-        assert desc["component_type"] == expected_component
-    if expected_count is not None:
-        assert desc["component_count"] == expected_count
-    assert desc["element_count"] == expected_elements
+    byte_offset = desc.get("byte_offset")
+    byte_length = desc.get("byte_length")
+    component_type = desc.get("component_type")
+    component_count = desc.get("component_count")
+    element_count = desc.get("element_count")
 
-    component_size = _COMPONENT_SIZES[desc["component_type"]]
-    expected_length = component_size * desc["component_count"] * desc["element_count"]
-    assert desc["byte_length"] == expected_length, (
-        f"byte_length mismatch: {desc['byte_length']} vs {expected_length}"
-    )
-    assert desc["byte_offset"] + desc["byte_length"] <= len(bin_data), (
-        f"Descriptor overflows buffer: {desc['byte_offset']} + {desc['byte_length']}"
-    )
+    if not isinstance(byte_offset, int) or byte_offset < 0:
+        _fail(f"{prefix}: byte_offset must be a non-negative integer, got: {byte_offset!r}")
+
+    if not isinstance(byte_length, int) or byte_length < 0:
+        _fail(f"{prefix}: byte_length must be a non-negative integer, got: {byte_length!r}")
+
+    if byte_offset % 4 != 0:
+        _fail(f"{prefix}: misaligned byte_offset: {byte_offset}")
+
+    if component_type not in _COMPONENT_SIZES:
+        _fail(f"{prefix}: invalid component_type: {component_type!r}")
+
+    if expected_component is not None and component_type != expected_component:
+        _fail(f"{prefix}: component_type must be {expected_component}, got {component_type}")
+
+    if not isinstance(component_count, int) or component_count < 1:
+        _fail(f"{prefix}: component_count must be >= 1, got {component_count}")
+
+    if expected_count is not None and component_count != expected_count:
+        _fail(f"{prefix}: component_count must be {expected_count}, got {component_count}")
+
+    if element_count != expected_elements:
+        _fail(
+            f"{prefix}: element_count mismatch: {element_count} (expected {expected_elements})"
+        )
+
+    component_size = _COMPONENT_SIZES[component_type]
+    expected_length = component_size * component_count * element_count
+    if byte_length != expected_length:
+        _fail(f"{prefix}: byte_length mismatch: {byte_length} vs {expected_length}")
+
+    end_offset = byte_offset + byte_length
+    if end_offset > len(bin_data):
+        _fail(
+            f"{prefix}: descriptor overflows buffer: {byte_offset} + {byte_length} > {len(bin_data)}"
+        )
+
+    if end_offset > _MAX_BUFFER_OFFSET:
+        _fail(f"{prefix}: byte_offset + byte_length overflows 64-bit range")
 
 
-def _validate_face_offsets(face_offsets_desc: Dict[str, Any], counts: Dict[str, int], bin_data: bytes) -> None:
+def _validate_face_offsets(
+    face_offsets_desc: Dict[str, Any],
+    counts: Dict[str, int],
+    bin_data: bytes,
+    prefix: str,
+) -> None:
     values = _unpack_u32(face_offsets_desc, bin_data)
 
-    assert values[0] == 0, f"face_offsets[0] must be 0, got {values[0]}"
-    assert values[-1] == counts["corners"], (
-        f"face_offsets[-1] must equal corners, got {values[-1]} vs {counts['corners']}"
-    )
+    if values[0] != 0:
+        _fail(f"{prefix}.topology.face_offsets: first value must be 0, got {values[0]}")
+
+    if values[-1] != counts["corners"]:
+        _fail(
+            f"{prefix}.topology.face_offsets: last value must equal corners "
+            f"({counts['corners']}), got {values[-1]}"
+        )
 
     for i in range(len(values) - 1):
-        assert values[i] <= values[i + 1], f"face_offsets must be non-decreasing: {values}"
-        # 빈 메시(faces=0)에서는 이 루프가 실행되지 않음
-        if counts["faces"] > 0:
-            assert values[i + 1] - values[i] >= 3, (
-                f"Each face must have at least 3 corners: {values[i]} -> {values[i + 1]}"
+        if values[i] > values[i + 1]:
+            _fail(
+                f"{prefix}.topology.face_offsets: must be non-decreasing, "
+                f"got {values[i]} > {values[i + 1]}"
+            )
+        if counts["faces"] > 0 and values[i + 1] - values[i] < 3:
+            _fail(
+                f"{prefix}.topology.face_offsets: each face must have at least 3 corners, "
+                f"got range [{values[i]}, {values[i + 1]})"
             )
 
 
-def _validate_index_ranges(topo: Dict[str, Any], counts: Dict[str, int], bin_data: bytes) -> None:
+def _validate_index_ranges(
+    topo: Dict[str, Any], counts: Dict[str, int], bin_data: bytes, prefix: str
+) -> None:
     vertices_count = counts["vertices"]
     edges_count = counts["edges"]
 
     edges = _unpack_u32(topo["edges"], bin_data)
     for idx in edges:
-        assert 0 <= idx < vertices_count, f"Edge vertex index out of range: {idx}"
+        if idx < 0 or idx >= vertices_count:
+            _fail(f"{prefix}.topology.edges: vertex index out of range: {idx} (vertices={vertices_count})")
 
     corner_vertices = _unpack_u32(topo["corner_vertices"], bin_data)
     for idx in corner_vertices:
-        assert 0 <= idx < vertices_count, f"Corner vertex index out of range: {idx}"
+        if idx < 0 or idx >= vertices_count:
+            _fail(
+                f"{prefix}.topology.corner_vertices: vertex index out of range: "
+                f"{idx} (vertices={vertices_count})"
+            )
 
     corner_edges = _unpack_u32(topo["corner_edges"], bin_data)
     for idx in corner_edges:
-        assert 0 <= idx < edges_count, f"Corner edge index out of range: {idx}"
+        if idx < 0 or idx >= edges_count:
+            _fail(
+                f"{prefix}.topology.corner_edges: edge index out of range: "
+                f"{idx} (edges={edges_count})"
+            )
 
 
-def _validate_corner_edge_consistency(topo: Dict[str, Any], counts: Dict[str, int], bin_data: bytes) -> None:
+def _validate_corner_edge_consistency(
+    topo: Dict[str, Any], counts: Dict[str, int], bin_data: bytes, prefix: str
+) -> None:
     """corner_edges[c]가 corner_vertices[c]와 corner_vertices[next]를 연결하는지 검증한다."""
     face_offsets = _unpack_u32(topo["face_offsets"], bin_data)
     corner_vertices = _unpack_u32(topo["corner_vertices"], bin_data)
@@ -167,43 +346,57 @@ def _validate_corner_edge_consistency(topo: Dict[str, Any], counts: Dict[str, in
             edge_idx = corner_edges[c]
             expected = {corner_vertices[c], corner_vertices[n]}
             actual = edge_vertices[edge_idx]
-            assert actual == expected, (
-                f"Corner-edge inconsistency at corner {c}: edge {edge_idx} has {actual}, expected {expected}"
-            )
+            if actual != expected:
+                _fail(
+                    f"{prefix}.topology: corner-edge inconsistency at face {face_index}, "
+                    f"corner {c}: edge {edge_idx} has vertices {actual}, expected {expected}"
+                )
 
 
-def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes) -> None:
+def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> None:
     """일반 attribute의 descriptor와 domain/element_count 일관성을 검증한다."""
     counts = mesh["element_counts"]
     attributes = mesh.get("attributes", [])
     seen_names = set()
 
-    for attr in attributes:
-        name = attr["name"]
-        assert name, "Attribute name must not be empty"
-        assert name not in seen_names, f"Duplicate attribute name: {name}"
+    for attr_index, attr in enumerate(attributes):
+        attr_prefix = f"{prefix}.attributes[{attr_index}]"
+        name = attr.get("name")
+        if not name:
+            _fail(f"{attr_prefix}: attribute name must be a non-empty string")
+        if name in seen_names:
+            _fail(f"{attr_prefix}: duplicate attribute name '{name}'")
         seen_names.add(name)
 
-        domain = attr["domain"]
-        assert domain in _DOMAIN_COUNT_KEY, f"Invalid attribute domain: {domain}"
+        domain = attr.get("domain")
+        if domain not in _DOMAIN_COUNT_KEY:
+            _fail(f"{attr_prefix}('{name}'): invalid domain '{domain}'")
 
         expected_elements = counts[_DOMAIN_COUNT_KEY[domain]]
         _validate_descriptor(
             attr["data"],
             bin_data,
+            prefix=f"{attr_prefix}('{name}').data",
             expected_component=None,
             expected_count=None,
             expected_elements=expected_elements,
         )
-        assert attr["data"]["component_count"] >= 1, (
-            f"component_count must be >= 1 for attribute '{name}'"
-        )
 
 
-def _validate_object(obj: Dict[str, Any], mesh_count: int) -> None:
-    assert obj["type"] == "MESH"
-    assert 0 <= obj["index"] < mesh_count
-    assert len(obj["transform"]) == 16
+def _validate_object(obj: Dict[str, Any], mesh_count: int, obj_index: int) -> None:
+    prefix = f"objects[{obj_index}]"
+
+    obj_type = obj.get("type")
+    if obj_type != "MESH":
+        _fail(f"{prefix}: type must be 'MESH', got {obj_type!r}")
+
+    index = obj.get("index")
+    if not isinstance(index, int) or index < 0 or index >= mesh_count:
+        _fail(f"{prefix}: index {index} is out of range for {mesh_count} meshes")
+
+    transform = obj.get("transform")
+    if not isinstance(transform, list) or len(transform) != 16:
+        _fail(f"{prefix}: transform must be a list of 16 values, got {transform!r}")
 
 
 def _unpack_u32(desc: Dict[str, Any], bin_data: bytes) -> list:

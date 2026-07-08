@@ -3,7 +3,9 @@ from bpy.types import Operator
 from bpy.props import BoolProperty, EnumProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper
 
-from . import mattr_writer
+from pathlib import Path
+
+from . import mattr_validator, mattr_writer
 
 
 class MATTR_OT_export_mesh(Operator, ExportHelper):
@@ -19,12 +21,6 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         maxlen=255,
     )
 
-    use_setting: BoolProperty(
-        name="Example Option",
-        description="Placeholder option for future export settings",
-        default=True,
-    )
-
     use_selection: BoolProperty(
         name="Selection Only",
         description="Export only selected mesh objects",
@@ -35,8 +31,8 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         name="Coordinate System",
         description="Target coordinate system for the exported file",
         items=[
-            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward (spec example)"),
-            ("BLENDER", "Blender", "+Z up, +Y forward (Blender native)"),
+            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward (Blender-compatible, spec example)"),
+            ("BLENDER", "Blender", "+Z up, +Y forward (Blender native, identical to MATTR Default)"),
         ],
         default="MATTR_DEFAULT",
     )
@@ -100,31 +96,70 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
 
         mesh_objects = [obj for obj in target_objects if obj.type == "MESH"]
 
+        warnings: list[str] = []
         for obj in target_objects:
             if obj.type != "MESH":
-                print(f"MATTR export warning: skipping non-mesh object '{obj.name}'")
+                warnings.append(f"skipping non-mesh object '{obj.name}'")
 
         if not mesh_objects:
             self.report({"ERROR"}, "No mesh objects to export")
             return {"CANCELLED"}
 
         self.filepath = _ensure_mattr_json_ext(self.filepath)
+        json_path = Path(self.filepath)
+        bin_path = json_path.with_name(json_path.stem + ".bin")
+
+        wm = context.window_manager
+        wm.progress_begin(0, len(mesh_objects))
+
+        def _update_progress(processed_count: int) -> None:
+            wm.progress_update(processed_count)
 
         try:
-            mattr_writer.write_mattr(
+            writer_warnings = mattr_writer.write_mattr(
                 self.filepath,
                 mesh_objects,
                 self.coordinate_system_preset,
                 export_attributes=self.export_attributes,
                 exclude_hidden_attributes=self.exclude_hidden_attributes,
                 excluded_attribute_names=self.excluded_attribute_names,
+                progress_callback=_update_progress,
             )
+            warnings.extend(writer_warnings)
+
+            mattr_validator.validate_mattr_file(self.filepath)
+        except mattr_validator.MattrValidationError as exc:
+            _delete_export_files(json_path, bin_path)
+            self.report({"ERROR"}, f"MATTR validation failed: {exc}")
+            return {"CANCELLED"}
         except Exception as exc:
+            # Writer already cleans up on write failure; this catches any other error.
+            _delete_export_files(json_path, bin_path)
             self.report({"ERROR"}, f"MATTR export failed: {exc}")
             return {"CANCELLED"}
+        finally:
+            wm.progress_end()
 
+        self._report_warnings(warnings)
         self.report({"INFO"}, f"Exported MATTR to {self.filepath}")
         return {"FINISHED"}
+
+    def _report_warnings(self, warnings: list[str]) -> None:
+        """수집된 경고를 Blender UI와 콘솔에 노출한다."""
+        if not warnings:
+            return
+
+        for warning in warnings:
+            print(f"MATTR export warning: {warning}")
+
+        # UI에는 핵심 내용만 요약 리포트 (Blender report는 너무 길면 잘림)
+        if len(warnings) == 1:
+            self.report({"WARNING"}, f"MATTR export warning: {warnings[0]}")
+        else:
+            self.report(
+                {"WARNING"},
+                f"MATTR export: {len(warnings)} warnings (see console)",
+            )
 
 
 def _ensure_mattr_json_ext(filepath: str) -> str:
@@ -137,3 +172,9 @@ def _ensure_mattr_json_ext(filepath: str) -> str:
     if filepath.endswith(".mattr"):
         return filepath + ".json"
     return filepath + ext
+
+
+def _delete_export_files(json_path: Path, bin_path: Path) -> None:
+    """익스포트 도중 생성된 파일 쌍을 삭제한다."""
+    json_path.unlink(missing_ok=True)
+    bin_path.unlink(missing_ok=True)

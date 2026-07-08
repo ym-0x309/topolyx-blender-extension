@@ -3,10 +3,8 @@ from bpy.types import TOPBAR_MT_file_export
 from bpy.utils import register_class, unregister_class
 
 from . import mattr_export_operator
-from . import mattr_properties
 
 classes = [
-    mattr_properties.MATTR_PG_export_settings,
     mattr_export_operator.MATTR_OT_export_mesh,
 ]
 

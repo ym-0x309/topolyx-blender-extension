@@ -1,96 +1,99 @@
 # MATTR Exporter Overview
 
-## 목적
+## Purpose
 
-`MATTR Exporter`는 Blender의 메시 데이터를 `MATTR(Mesh Attribute & Topology Transfer Representation)` 포맷으로 낸 장하기 위한 Blender Extension(애드온)이다.
+`MATTR Exporter` is a Blender Extension (add-on) for exporting Blender mesh data to the `MATTR` (Mesh Attribute & Topology Transfer Representation) format.
 
-본 Extension은 Blender 5.1 이상을 대상으로 하며, 메시의 토폴로지(positions, edges, faces, corners)와 POINT/EDGE/FACE/CORNER 도메인의 attribute를 손실 없이 `.mattr.json` + `.mattr.bin` 파일 쌍으로 저장하는 것을 목표로 한다.
+It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.mattr.json` + `.mattr.bin` file pair.
 
-## 파일 구조
+This extension implements MATTR format version `v0.1.0`.
+
+## File Structure
 
 ```text
 blender_mattr_exporter/
-├── blender_manifest.toml       # Extension 메타데이터 및 Blender 호환 정보
-├── __init__.py                 # 애드온 등록/해제 및 메뉴 연결
-├── mattr_export_operator.py    # 파일 저장 대화상자 및 익스포트 실행 Operator
-├── mattr_properties.py         # 익스포트 옵션 PropertyGroup
-├── mattr_writer.py             # JSON + binary 조립 진입점
-├── mattr_types.py              # MATTR 포맷 데이터 모델
-├── mattr_mesh.py               # Blender Mesh → MATTR 토폴로지 추출
-├── mattr_attribute.py          # Blender Mesh Attribute → MATTR attribute 추출
-├── mattr_binary.py             # 4바이트 정렬 binary 버퍼 빌더
-├── mattr_validator.py          # 출력 파일 유효성 검증
-    └── tests/
-        ├── test_phase0.py          # Blender 낸 장기능 smoke test
-        ├── test_phase1.py          # 토폴로지 익스포트 검증
-        ├── test_phase2.py          # 좌표계 변환 검증
-        ├── test_phase3.py          # attribute 익스포트 검증
-        └── test_phase4.py          # 다중 오브젝트 및 메시 공유 검증
+├── blender_manifest.toml       # Extension metadata and Blender compatibility
+├── __init__.py                 # Add-on registration/deregistration and menu wiring
+├── mattr_export_operator.py    # File save dialog and export Operator
+├── mattr_writer.py             # JSON + binary assembly entry point
+├── mattr_reader.py             # JSON + binary load and validation entry point
+├── mattr_types.py              # MATTR format data model
+├── mattr_mesh.py               # Blender Mesh -> MATTR topology extraction
+├── mattr_attribute.py          # Blender Mesh Attribute <-> MATTR attribute conversion
+├── mattr_binary.py             # 4-byte aligned binary buffer builder/reader
+├── mattr_coordinate.py         # Bidirectional coordinate system conversion
+├── mattr_utils.py              # Shared utilities (matrix serialization, etc.)
+├── mattr_validator.py          # Output file validation
+└── tests/
+    ├── common.py               # Common test helpers
+    ├── run_all.py              # Phase 0~6 integrated test runner
+    ├── test_phase0.py          # Extension registration / Operator smoke test
+    ├── test_phase1.py          # Topology export validation
+    ├── test_phase2.py          # Coordinate system and Object Transform validation
+    ├── test_phase3.py          # Attribute export validation
+    ├── test_phase4.py          # Multi-object and mesh sharing validation
+    ├── test_phase5.py          # Edge cases and validation strengthening
+    └── test_phase6.py          # Shared utilities and reader validation
 ```
 
-## Extension 생명주기
+## Extension Lifecycle
 
-### 1. 설치 및 활성화
+### 1. Installation and Activation
 
-- 사용자가 `blender_manifest.toml`을 포함한 디렉터리를 Blender에 설치한다.
-- Blender는 활성화 시 `__init__.py`의 `register()` 함수를 호출한다.
+- The user installs the directory containing `blender_manifest.toml` into Blender.
+- When activated, Blender calls `register()` in `__init__.py`.
 
-### 2. 등록
+### 2. Registration
 
-`register()`는 다음 항목들을 Blender에 등록한다.
+`register()` registers the following with Blender:
 
 - `MATTR_OT_export_mesh` Operator
-- `MATTR_PG_export_settings` PropertyGroup
-- `File > Export` 메뉴 항목
+- `File > Export` menu item
 
-### 3. 사용 흐름
+### 3. Usage Flow
 
-1. 사용자가 `File > Export > MATTR (.mattr.json)`를 선택한다.
-2. `ExportHelper`를 상속한 Operator가 파일 저장 대화상자를 연다.
-3. 사용자가 경로를 선택하고 Export를 누륩다.
-4. Operator의 `execute()`가 호출되고, 대상 메시 오브젝트 목록을 `mattr_writer`에 전달한다.
-5. `mattr_writer`는 각 오브젝트의 `obj.data`를 기반으로 `.mattr.json`과 `.mattr.bin`을 생성한다. 동일한 메시 데이터 블록은 한 번만 기록한다.
+1. The user selects `File > Export > MATTR (.mattr.json)`.
+2. The Operator, inheriting from `ExportHelper`, opens the file save dialog.
+3. The user chooses a path and presses Export.
+4. The Operator's `execute()` is called and passes the target mesh object list to `mattr_writer`.
+5. `mattr_writer` creates `.mattr.json` and `.mattr.bin` based on each object's `obj.data`. The same mesh data block is written only once.
+6. After writing, `mattr_validator` validates the output files.
 
-### 4. 비활성화
+### 4. Deactivation
 
-- Blender는 비활성화 시 `unregister()`를 호출한다.
-- 등록된 Operator, PropertyGroup, 메뉴 항목을 모두 제거한다.
+- When deactivated, Blender calls `unregister()`.
+- It removes the registered Operator and menu item.
 
-## 주요 설계 결정
+## Key Design Decisions
 
-- **원본 메시 사용**: 평가된 메시(evaluated mesh)가 아닌 `obj.data` 원본 데이터 블록을 낸 장한다.
-- **좌표계 변환 지원**: 기본적으로 명세 예시 좌표계(`+Z` Up, `+Y` Forward, Right-handed, CCW)로 낸 장한다. Blender의 좌표계(`+Z` Up, `+Y` Forward)와 동일하므로, 현재 `MATTR_DEFAULT`와 `BLENDER` preset은 동일한 출력을 생성한다.
-- **Object Transform 변환**: `object.transform`은 mesh local space 좌표를 file world space 좌표로 변환하는 행렬로, 좌표계 변환에 맞춰 함께 변환된다.
-- **Left-handed 좌표계 미지원**: Phase 2에서는 Right-handed 좌표계만 지원한다.
-- **Attribute 처리**:
-  - `POINT`, `EDGE`, `FACE`, `CORNER` domain attribute를 낸 장한다.
-  - 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`이다.
-  - `BYTE_COLOR`는 0~1 범위로 정규화된 `F32×4`로 저장한다.
-  - `BOOLEAN`, `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` 등 v0.0.1에서 지원하지 않는 타입은 걸러내고 경고를 출력한다.
-  - `.`로 시작하는 hidden/internal attribute, `position`, `sharp_edge/face`, `freestyle_edge/face` 등은 기본적으로 제외한다.
-  - 사용자는 `Excluded Attributes`에 쉼표로 구분된 이름 목록을 지정해 추가로 제외할 수 있다.
-- **다중 오브젝트 익스포트**:
-  - 선택된 메시 오브젝트를 한 번에 익스포트할 수 있다.
-  - `Selection Only` 옵션을 끄면 씬의 모든 메시 오브젝트를 익스포트한다.
-  - 비메시 오브젝트는 경고 후 무시한다.
-- **메시 공유**:
-  - 여러 오브젝트가 동일한 메시 데이터 블록을 참조하면 `meshes` 배열에 한 번만 기록하고, `objects[].index`로 공유한다.
-- **출력 파일**: 사용자가 선택한 `.mattr.json` 경로를 기준으로 동일한 basename의 `.mattr.bin`을 생성한다.
+- **Original mesh usage**: Exports the original `obj.data` data block, not the evaluated mesh.
+- **Coordinate system**: Exports to the MATTR v0.1.0 example coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW). The `BLENDER` preset produces output identical to Blender's native coordinate system.
+- **Object Transform conversion**: `object.transform` is the matrix that converts mesh local space coordinates to file world space coordinates, transformed according to the selected coordinate system.
+- **Left-handed coordinate system not supported**: Only right-handed coordinate systems are supported.
+- **Bidirectional conversion support**: `mattr_coordinate.py` provides inverse coordinate conversion to prepare for future importer implementation.
+- **Attribute handling**:
+  - Exports `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes.
+  - Supported Blender data types are `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`.
+  - `BYTE_COLOR` is stored as normalized `F32×4` in the 0~1 range.
+  - Types not supported in v0.1.0 such as `BOOLEAN`, `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
+  - Hidden/internal attributes starting with `.`, `position`, `sharp_edge/face`, `freestyle_edge/face`, etc. are excluded by default.
+  - Users can specify additional names to skip in the `Excluded Attributes` comma-separated list.
+- **Multi-object export**:
+  - Selected mesh objects can be exported at once.
+  - Turning off `Selection Only` exports all mesh objects in the scene.
+  - Non-mesh objects are skipped with a warning.
+- **Mesh sharing**:
+  - When multiple objects reference the same mesh data block, it is recorded once in the `meshes` array and shared via `objects[].index`.
+- **Output files**: Generates a `.mattr.bin` with the same basename as the chosen `.mattr.json` path.
+- **Self-validation**: Immediately after export, `mattr_validator` checks the output files and reports specification violations to the user.
+- **Importer preparation**: Added `mattr_reader.py`, `BinaryBufferReader`, attribute reverse mapping, and matrix deserialization utilities to lay the groundwork for future importer implementation.
 
-## 테스트
+## Tests
 
-- `tests/test_phase0.py`는 Blender 백그라운드 모드에서 Extension을 등록하고 Operator를 실행하는 smoke test다.
-- `tests/test_phase1.py`는 Default Cube와 빈 메시를 익스포트하여 토폴로지와 binary 레이아웃을 검증한다.
-- `tests/test_phase2.py`는 좌표계 변환 및 Object Transform 변환을 검증한다.
-- `tests/test_phase3.py`는 UV map, vertex color, custom attribute 등 attribute 익스포트를 검증한다.
-- `tests/test_phase4.py`는 다중 오브젝트 익스포트와 메시 공유를 검증한다.
-- 실행 예시:
+See [TESTING.md](TESTING.md) for detailed test execution instructions.
+
+Summary:
 
 ```bash
-blender -b -P blender_mattr_exporter/tests/test_phase0.py
-blender -b -P blender_mattr_exporter/tests/test_phase1.py
-blender -b -P blender_mattr_exporter/tests/test_phase2.py
-blender -b -P blender_mattr_exporter/tests/test_phase3.py
-blender -b -P blender_mattr_exporter/tests/test_phase4.py
-blender -b -P blender_mattr_exporter/tests/test_phase3.py
+blender -b -P blender_mattr_exporter/tests/run_all.py
 ```

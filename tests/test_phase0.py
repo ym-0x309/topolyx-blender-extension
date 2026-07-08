@@ -12,36 +12,31 @@ it is temporarily disabled to avoid class registration conflicts.
 """
 
 import sys
-import tempfile
 from pathlib import Path
+
+# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-ADDON_MODULE = "blender_mattr_exporter"
+from blender_mattr_exporter.tests import common
 
 
 def main():
-    project_root = Path(__file__).parent.parent.parent
-    sys.path.insert(0, str(project_root))
+    common.reset_addon()
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
 
-    # 이미 활성화된 동일 ID의 애드온이 있다면 비활성화
-    if ADDON_MODULE in bpy.context.preferences.addons:
-        bpy.ops.preferences.addon_disable(module=ADDON_MODULE)
-
-    # 기존에 로드된 모듈 캐시를 제거하여 소스 디렉터리에서 재임포트
-    for name in list(sys.modules.keys()):
-        if name == ADDON_MODULE or name.startswith(ADDON_MODULE + "."):
-            del sys.modules[name]
-
-    import blender_mattr_exporter
-
-    blender_mattr_exporter.register()
-
-    with tempfile.TemporaryDirectory() as tmpdir:
-        test_path = Path(tmpdir) / "test.mattr.json"
+    tmpdir = common.tempdir()
+    try:
+        test_path = tmpdir / "test.mattr.json"
         result = bpy.ops.export_mesh.mattr(filepath=str(test_path))
         assert result == {"FINISHED"}, f"Operator returned {result}"
         print(f"Phase 0 smoke test passed: {test_path}")
+    finally:
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 if __name__ == "__main__":

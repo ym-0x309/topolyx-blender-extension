@@ -1,8 +1,8 @@
-"""MATTR JSON + binary 파일을 조립하여 쓴다."""
+"""Assemble and write MATTR JSON + binary file pairs."""
 
 import json
 from pathlib import Path
-from typing import List, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import bpy
 
@@ -19,6 +19,7 @@ from .mattr_types import (
     Topology,
     TopologyData,
 )
+from .mattr_utils import matrix_to_column_major_list
 
 
 def write_mattr(
@@ -28,15 +29,21 @@ def write_mattr(
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
-) -> None:
-    """하나 이상의 메시 오브젝트를 MATTR 파일 쌍으로 낸 장한다.
+    progress_callback: Optional[Callable[[int], None]] = None,
+) -> List[str]:
+    """Export one or more mesh objects as a MATTR file pair.
 
-    - filepath: 사용자가 선택한 .mattr.json 경로
-    - objects: 낸 장할 MESH 타입 Blender 오브젝트 목록
-    - coordinate_system_preset: "BLENDER" 또는 "MATTR_DEFAULT"
-    - export_attributes: attribute 낸 장 여부
-    - exclude_hidden_attributes: '.select_*', 'position' 등 난 Outputplus/internal attribute 제외
-    - excluded_attribute_names: 쉼표로 구분된 추가 제외 attribute 이름
+    Args:
+        filepath: Destination .mattr.json path.
+        objects: Sequence of Blender MESH objects to export.
+        coordinate_system_preset: "BLENDER" or "MATTR_DEFAULT".
+        export_attributes: Whether to export mesh attributes.
+        exclude_hidden_attributes: Skip internal/hidden attributes.
+        excluded_attribute_names: Comma-separated attribute names to skip.
+        progress_callback: Optional callback receiving processed object count.
+
+    Returns:
+        List of warning messages collected during export.
     """
     path = Path(filepath)
     bin_path = path.parent / (path.stem + ".bin")
@@ -51,8 +58,9 @@ def write_mattr(
     mesh_to_index: dict[bpy.types.Mesh, int] = {}
     meshes: list[Mesh] = []
     object_entries: list[ObjectEntry] = []
+    all_warnings: list[str] = []
 
-    for obj in objects:
+    for obj_index, obj in enumerate(objects):
         mesh = obj.data
         if mesh not in mesh_to_index:
             topology_data = mattr_mesh.extract_topology(mesh, converter)
@@ -63,8 +71,7 @@ def write_mattr(
                 exclude_hidden=exclude_hidden_attributes,
                 excluded_names=excluded_names,
             )
-            for warning in warnings:
-                print(f"MATTR export warning: {warning}")
+            all_warnings.extend(warnings)
 
             mattr_mesh_obj = _append_mesh(buffer, mesh.name, topology_data, attribute_arrays)
             index = len(meshes)
@@ -78,11 +85,14 @@ def write_mattr(
                 name=obj.name,
                 type="MESH",
                 index=index,
-                transform=_matrix_to_column_major_list(
+                transform=matrix_to_column_major_list(
                     converter.convert_matrix(obj.matrix_world)
                 ),
             )
         )
+
+        if progress_callback is not None:
+            progress_callback(obj_index + 1)
 
     mattr_file = MattrFile(
         header=Header(),
@@ -92,14 +102,21 @@ def write_mattr(
         meshes=meshes,
     )
 
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
+        buffer.write(bin_path)
+    except Exception:
+        # Remove incomplete file pair if writing fails mid-way.
+        path.unlink(missing_ok=True)
+        bin_path.unlink(missing_ok=True)
+        raise
 
-    buffer.write(bin_path)
+    return all_warnings
 
 
 def _parse_excluded_attribute_names(names_str: str) -> set[str]:
-    """쉼표로 구분된 attribute 이름 문자열을 집합으로 변환한다."""
+    """Parse a comma-separated attribute name string into a set."""
     return {name.strip() for name in names_str.split(",") if name.strip()}
 
 
@@ -109,7 +126,7 @@ def _append_mesh(
     topology_data: TopologyData,
     attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
 ) -> Mesh:
-    """하나의 메시에 대해 topology와 attributes를 binary 버퍼에 기록한다."""
+    """Append topology and attributes for a single mesh to the binary buffer."""
     counts = topology_data.element_counts
 
     positions_offset = buffer.append_f32(topology_data.positions)
@@ -169,7 +186,7 @@ def _append_mesh(
 def _append_attributes(
     buffer: mattr_binary.BinaryBuffer, attribute_arrays: Sequence[mattr_attribute.AttributeArrays]
 ) -> list[Attribute]:
-    """attribute 배열들을 binary 버퍼에 추가하고 descriptor를 생성한다."""
+    """Append attribute arrays to the binary buffer and build descriptors."""
     attributes: list[Attribute] = []
     for attr in attribute_arrays:
         if attr.component_type == "F32":
@@ -195,12 +212,3 @@ def _append_attributes(
             )
         )
     return attributes
-
-
-def _matrix_to_column_major_list(matrix) -> List[float]:
-    """Blender mathutils.Matrix를 column-major 16개 float list로 변환한다.
-
-    Blender Python API에서는 matrix[row][col]이 row-major 접근 표기를 사용하므로,
-    column-major 직렬화를 위해 col을 바깥 루프로 순회한다.
-    """
-    return [matrix[row][col] for col in range(4) for row in range(4)]

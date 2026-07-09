@@ -149,3 +149,74 @@ def assert_u32_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> N
 def tempdir() -> Path:
     """테스트용 임시 디렉터리를 Path 객체로 반환한다."""
     return Path(tempfile.mkdtemp(prefix="mattr_test_"))
+
+
+def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
+    """MATTR 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+
+    Attribute 복원은 포함하지 않으며, Phase 8 attribute import 테스트에서
+    mesh 생성 부분을 공유하기 위한 헬퍼이다.
+    """
+    from mathutils import Vector
+
+    from blender_mattr_exporter.mattr_binary import BinaryBufferReader
+    from blender_mattr_exporter.mattr_coordinate import CoordinateConverter
+    from blender_mattr_exporter.mattr_mesh_import import build_blender_mesh
+    from blender_mattr_exporter.mattr_reader import read_mattr
+
+    mattr_file, bin_data = read_mattr(json_path)
+    mesh_data = mattr_file.meshes[0]
+    topo = mesh_data.topology
+    reader = BinaryBufferReader(bin_data)
+
+    positions = list(
+        reader.read_f32(
+            topo.positions.byte_offset,
+            topo.positions.element_count * topo.positions.component_count,
+        )
+    )
+    edges = list(
+        reader.read_u32(
+            topo.edges.byte_offset,
+            topo.edges.element_count * topo.edges.component_count,
+        )
+    )
+    corner_vertices = list(
+        reader.read_u32(
+            topo.corner_vertices.byte_offset,
+            topo.corner_vertices.element_count
+            * topo.corner_vertices.component_count,
+        )
+    )
+    corner_edges = list(
+        reader.read_u32(
+            topo.corner_edges.byte_offset,
+            topo.corner_edges.element_count * topo.corner_edges.component_count,
+        )
+    )
+    face_offsets = list(
+        reader.read_u32(
+            topo.face_offsets.byte_offset,
+            topo.face_offsets.element_count * topo.face_offsets.component_count,
+        )
+    )
+
+    converter = CoordinateConverter.from_coordinate_system(
+        mattr_file.coordinate_system
+    )
+    converted_positions = []
+    for i in range(0, len(positions), 3):
+        v = converter.inverse_convert_position(
+            Vector((positions[i], positions[i + 1], positions[i + 2]))
+        )
+        converted_positions.extend((v.x, v.y, v.z))
+
+    return build_blender_mesh(
+        mesh_data.name,
+        converted_positions,
+        edges,
+        corner_vertices,
+        corner_edges,
+        face_offsets,
+        converter.winding,
+    )

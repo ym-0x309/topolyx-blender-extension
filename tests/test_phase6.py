@@ -17,6 +17,7 @@ from blender_mattr_exporter.mattr_attribute import mattr_component_type_to_blend
 from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
 from blender_mattr_exporter.mattr_coordinate import CoordinateConverter
 from blender_mattr_exporter.mattr_reader import read_mattr
+from blender_mattr_exporter.mattr_types import CoordinateSystem
 from blender_mattr_exporter.mattr_utils import (
     column_major_list_to_matrix,
     matrix_to_column_major_list,
@@ -94,11 +95,13 @@ def test_mattr_component_type_to_blender():
         "color",
     )
     assert mattr_component_type_to_blender("I32", 1) == ("INT", "value")
-    assert mattr_component_type_to_blender("I32", 2) == ("INT32_2D", "vector")
+    assert mattr_component_type_to_blender("I32", 2) == ("INT32_2D", "value")
+    assert mattr_component_type_to_blender("U32", 1) == ("INT", "value")
+    assert mattr_component_type_to_blender("U32", 2) == ("INT32_2D", "value")
 
     try:
-        mattr_component_type_to_blender("U32", 1)
-        raise AssertionError("Expected ValueError for unsupported U32x1")
+        mattr_component_type_to_blender("U32", 3)
+        raise AssertionError("Expected ValueError for unsupported U32x3")
     except ValueError:
         pass
 
@@ -139,12 +142,140 @@ def test_read_mattr():
     print("test_read_mattr passed")
 
 
+def test_from_coordinate_system():
+    """CoordinateSystem 객체로부터 생성한 변환기가 preset 변환기와 동일한지 확인한다."""
+    preset_converter = CoordinateConverter("MATTR_DEFAULT")
+    cs_converter = CoordinateConverter.from_coordinate_system(
+        CoordinateSystem(
+            up_axis="+Z",
+            forward_axis="+Y",
+            handedness="RIGHT",
+            winding="CCW",
+            meters_per_unit=1.0,
+        )
+    )
+
+    pos = Vector((1.0, 2.0, 3.0))
+    assert (
+        preset_converter.convert_position(pos) - cs_converter.convert_position(pos)
+    ).length < 1e-6
+    assert (
+        preset_converter.inverse_convert_position(pos)
+        - cs_converter.inverse_convert_position(pos)
+    ).length < 1e-6
+
+    print("test_from_coordinate_system passed")
+
+
+def test_arbitrary_coordinate_system():
+    """임의의 right-handed 좌표계에서 양방향 변환이 정확한지 확인한다."""
+    cs = CoordinateSystem(
+        up_axis="+Y",
+        forward_axis="+Z",
+        handedness="RIGHT",
+        winding="CCW",
+        meters_per_unit=1.0,
+    )
+    converter = CoordinateConverter.from_coordinate_system(cs)
+
+    pos = Vector((1.0, 2.0, 3.0))
+    converted = converter.convert_position(pos)
+    recovered = converter.inverse_convert_position(converted)
+    assert (pos - recovered).length < 1e-6
+
+    matrix = Matrix.Translation(Vector((4.0, 5.0, 6.0)))
+    converted_matrix = converter.convert_matrix(matrix)
+    recovered_matrix = converter.inverse_convert_matrix(converted_matrix)
+    assert (matrix.to_translation() - recovered_matrix.to_translation()).length < 1e-6
+
+    print("test_arbitrary_coordinate_system passed")
+
+
+def test_winding_property():
+    """converter.winding이 CoordinateSystem의 winding을 올바르게 반환하는지 확인한다."""
+    converter_ccw = CoordinateConverter.from_coordinate_system(
+        CoordinateSystem(winding="CCW")
+    )
+    converter_cw = CoordinateConverter.from_coordinate_system(
+        CoordinateSystem(winding="CW")
+    )
+
+    assert converter_ccw.winding == "CCW"
+    assert converter_cw.winding == "CW"
+
+    print("test_winding_property passed")
+
+
+def test_meters_per_unit_scaling():
+    """meters_per_unit이 위치와 행렬 변환에 올바르게 적용되는지 확인한다."""
+    cs = CoordinateSystem(
+        up_axis="+Z",
+        forward_axis="+Y",
+        handedness="RIGHT",
+        winding="CCW",
+        meters_per_unit=2.0,
+    )
+    converter = CoordinateConverter.from_coordinate_system(cs)
+
+    pos = Vector((1.0, 2.0, 3.0))
+    blender_pos = converter.inverse_convert_position(pos)
+    assert (blender_pos - Vector((2.0, 4.0, 6.0))).length < 1e-6
+
+    source_pos = converter.convert_position(blender_pos)
+    assert (source_pos - pos).length < 1e-6
+
+    matrix = Matrix.Translation(Vector((3.0, 0.0, 0.0)))
+    blender_matrix = converter.inverse_convert_matrix(matrix)
+    expected_translation = Vector((6.0, 0.0, 0.0))
+    assert (
+        blender_matrix.to_translation() - expected_translation
+    ).length < 1e-6
+
+    print("test_meters_per_unit_scaling passed")
+
+
+def test_invalid_coordinate_system_rejected():
+    """Left-handed이거나 평행한 축을 가진 좌표계는 생성 시 거부되어야 한다."""
+    try:
+        CoordinateConverter.from_coordinate_system(
+            CoordinateSystem(
+                up_axis="+Z",
+                forward_axis="+Z",
+                handedness="RIGHT",
+                winding="CCW",
+            )
+        )
+        raise AssertionError("Expected ValueError for parallel axes")
+    except ValueError:
+        pass
+
+    try:
+        CoordinateConverter.from_coordinate_system(
+            CoordinateSystem(
+                up_axis="+Z",
+                forward_axis="+Y",
+                handedness="LEFT",
+                winding="CCW",
+            )
+        )
+        raise AssertionError("Expected ValueError for left-handed system")
+    except ValueError:
+        pass
+
+    print("test_invalid_coordinate_system_rejected passed")
+
+
 def main():
     common.reset_addon()
     test_inverse_coordinate_conversion()
     test_matrix_serialization_round_trip()
     test_binary_buffer_reader()
     test_mattr_component_type_to_blender()
+    test_from_coordinate_system()
+    test_arbitrary_coordinate_system()
+    test_winding_property()
+    test_meters_per_unit_scaling()
+    test_invalid_coordinate_system_rejected()
     test_read_mattr()
     print("All Phase 6 tests passed")
 

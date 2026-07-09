@@ -19,21 +19,25 @@ blender_mattr_exporter/
 ├── mattr_reader.py             # JSON + binary load and validation entry point
 ├── mattr_types.py              # MATTR format data model
 ├── mattr_mesh.py               # Blender Mesh -> MATTR topology extraction
-├── mattr_attribute.py          # Blender Mesh Attribute <-> MATTR attribute conversion
+├── mattr_mesh_import.py        # MATTR topology -> Blender Mesh reconstruction
+├── mattr_attribute.py          # Blender Mesh Attribute -> MATTR attribute conversion
+├── mattr_attribute_import.py   # MATTR attribute -> Blender Mesh Attribute restoration
 ├── mattr_binary.py             # 4-byte aligned binary buffer builder/reader
 ├── mattr_coordinate.py         # Bidirectional coordinate system conversion
 ├── mattr_utils.py              # Shared utilities (matrix serialization, etc.)
 ├── mattr_validator.py          # Output file validation
 └── tests/
     ├── common.py               # Common test helpers
-    ├── run_all.py              # Phase 0~6 integrated test runner
+    ├── run_all.py              # Phase 0~8 integrated test runner
     ├── test_phase0.py          # Extension registration / Operator smoke test
     ├── test_phase1.py          # Topology export validation
     ├── test_phase2.py          # Coordinate system and Object Transform validation
     ├── test_phase3.py          # Attribute export validation
     ├── test_phase4.py          # Multi-object and mesh sharing validation
     ├── test_phase5.py          # Edge cases and validation strengthening
-    └── test_phase6.py          # Shared utilities and reader validation
+    ├── test_phase6.py          # Shared utilities and reader validation
+    ├── test_phase7.py          # Topology import validation
+    └── test_phase8.py          # Attribute import validation
 ```
 
 ## Extension Lifecycle
@@ -86,7 +90,11 @@ blender_mattr_exporter/
   - When multiple objects reference the same mesh data block, it is recorded once in the `meshes` array and shared via `objects[].index`.
 - **Output files**: Generates a `.mattr.bin` with the same basename as the chosen `.mattr.json` path.
 - **Self-validation**: Immediately after export, `mattr_validator` checks the output files and reports specification violations to the user.
-- **Importer preparation**: Added `mattr_reader.py`, `BinaryBufferReader`, attribute reverse mapping, and matrix deserialization utilities to lay the groundwork for future importer implementation.
+- **Importer preparation**: Added `mattr_reader.py`, `BinaryBufferReader`, attribute reverse mapping, matrix deserialization utilities, `mattr_mesh_import.py` topology reconstruction, and `mattr_attribute_import.py` attribute restoration to lay the groundwork for future importer implementation.
+- **Attribute import handling**:
+  - Restores `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes onto a Blender Mesh.
+  - `U32` attributes are stored as signed `INT`/`INT32_2D` while preserving the underlying bit pattern, because Blender has no unsigned 32-bit attribute type.
+  - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_`.
 
 ## Tests
 

@@ -1,6 +1,6 @@
-"""Blender 좌표계에서 MATTR 목표 좌표계로 변환하는 유틸리티."""
+"""Blender 좌표계와 MATTR 목표 좌표계 사이를 양방향으로 변환하는 유틸리티."""
 
-from typing import Dict
+from typing import Dict, Optional
 
 from mathutils import Matrix, Vector
 
@@ -35,10 +35,13 @@ _PRESETS: Dict[str, CoordinateSystem] = {
 class CoordinateConverter:
     """Blender coordinate system과 target coordinate system 사이를 양방향으로 변환한다.
 
-    변환 행렬 M_cs는 ``p_target = M_cs @ p_blender``를 만족하도록 정의한다.
+    변환 행렬 M은 ``p_target = M @ p_blender``를 만족하도록 정의한다.
+    ``meters_per_unit``이 1.0이 아닌 경우, 위치 변환에 단위 스케일도 함께 적용한다.
+
     Blender world matrix를 target world matrix로 변환할 때는
-    ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용하며,
-    역변환은 ``M_blender = M_cs^-1 @ M_target @ M_cs``를 적용한다.
+    ``M_target = S^-1 @ M @ M_blender @ M^-1 @ S``를 적용하며,
+    역변환은 ``M_blender = S @ M^-1 @ M_target @ M @ S^-1``를 적용한다.
+    여기서 S는 ``meters_per_unit``로 이루어진 uniform scale 행렬이다.
     """
 
     def __init__(self, preset: str) -> None:
@@ -49,12 +52,24 @@ class CoordinateConverter:
             )
 
         self.preset = preset
-        self.target = _PRESETS[preset]
+        self._init_from_coordinate_system(_PRESETS[preset])
+
+    @classmethod
+    def from_coordinate_system(cls, cs: CoordinateSystem) -> "CoordinateConverter":
+        """CoordinateSystem 객체로부터 변환기를 생성한다. (Importer용)"""
+        instance = cls.__new__(cls)
+        instance.preset = "CUSTOM"
+        instance._init_from_coordinate_system(cs)
+        return instance
+
+    def _init_from_coordinate_system(self, cs: CoordinateSystem) -> None:
+        self.target = cs
         self._validate_target()
         self._matrix_3x3 = self._build_conversion_matrix()
         self._matrix_4x4 = self._matrix_3x3.to_4x4()
         self._matrix_3x3_inv = self._matrix_3x3.inverted()
         self._matrix_4x4_inv = self._matrix_4x4.inverted()
+        self._unit_scale = float(cs.meters_per_unit)
 
     def _validate_target(self) -> None:
         cs = self.target
@@ -81,7 +96,7 @@ class CoordinateConverter:
             )
 
     def _build_conversion_matrix(self) -> Matrix:
-        """Return M_cs such that p_target = M_cs @ p_blender."""
+        """Return M such that p_target = M @ p_blender (rotation/reflection only)."""
         cs = self.target
         up = _AXIS_VECTORS[cs.up_axis]
         forward = _AXIS_VECTORS[cs.forward_axis]
@@ -99,23 +114,44 @@ class CoordinateConverter:
                 (right.z, forward.z, up.z),
             )
         )
-        return B.transposed()
+        M = B.transposed()
+
+        # 추가 방어: 실제로 right-handed basis인지 determinant로 확인
+        if M.determinant() < 0:
+            raise ValueError(
+                f"Built conversion matrix is left-handed for up={cs.up_axis}, "
+                f"forward={cs.forward_axis}"
+            )
+
+        return M
+
+    def _scale_matrix(self, invert: bool = False) -> Matrix:
+        """meters_per_unit에 따른 4x4 uniform scale 행렬을 반환한다."""
+        scale = 1.0 / self._unit_scale if invert else self._unit_scale
+        return Matrix.Scale(scale, 4)
+
+    @property
+    def winding(self) -> str:
+        """target coordinate system의 winding을 반환한다."""
+        return self.target.winding
 
     def convert_position(self, v: Vector) -> Vector:
         """Blender local/world position을 target local/world position으로 변환한다."""
-        return self._matrix_3x3 @ v
+        return (self._matrix_3x3 @ v) / self._unit_scale
 
     def convert_direction(self, v: Vector) -> Vector:
-        """방향 벡터를 변환한다. (translation 없음)"""
+        """방향 벡터를 변환한다. (translation 없음, 단위 스케일 없음)"""
         return self._matrix_3x3 @ v
 
     def convert_matrix(self, m: Matrix) -> Matrix:
         """Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다."""
-        return self._matrix_4x4 @ m @ self._matrix_4x4_inv
+        S_inv = self._scale_matrix(invert=True)
+        S = self._scale_matrix()
+        return S_inv @ self._matrix_4x4 @ m @ self._matrix_4x4_inv @ S
 
     def inverse_convert_position(self, v: Vector) -> Vector:
         """target local/world position을 Blender local/world position으로 변환한다."""
-        return self._matrix_3x3_inv @ v
+        return (self._matrix_3x3_inv @ v) * self._unit_scale
 
     def inverse_convert_direction(self, v: Vector) -> Vector:
         """target 방향 벡터를 Blender 방향 벡터로 변환한다. (translation 없음)"""
@@ -123,4 +159,6 @@ class CoordinateConverter:
 
     def inverse_convert_matrix(self, m: Matrix) -> Matrix:
         """target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다."""
-        return self._matrix_4x4_inv @ m @ self._matrix_4x4
+        S = self._scale_matrix()
+        S_inv = self._scale_matrix(invert=True)
+        return S @ self._matrix_4x4_inv @ m @ self._matrix_4x4 @ S_inv

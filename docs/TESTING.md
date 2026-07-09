@@ -7,14 +7,16 @@
 ```text
 blender_mattr_exporter/tests/
 ├── common.py           # 공통 테스트 헬퍼
-├── run_all.py          # Phase 0~6 통합 러너
+├── run_all.py          # Phase 0~8 통합 테스트 러너
 ├── test_phase0.py      # Extension 등록/Operator smoke test
 ├── test_phase1.py      # 토폴로지 익스포트 검증
 ├── test_phase2.py      # 좌표계 변환 및 Object Transform 검증
 ├── test_phase3.py      # attribute 익스포트 검증
 ├── test_phase4.py      # 다중 오브젝트 및 메시 공유 검증
 ├── test_phase5.py      # 엣지 케이스 및 검증 강화
-└── test_phase6.py      # 공유 유틸리티 및 reader 검증
+├── test_phase6.py      # 공유 유틸리티 및 reader 검증
+├── test_phase7.py      # topology import 검증
+└── test_phase8.py      # attribute import 검증
 ```
 
 ## 사전 요구 사항
@@ -34,11 +36,13 @@ blender -b -P blender_mattr_exporter/tests/test_phase3.py
 blender -b -P blender_mattr_exporter/tests/test_phase4.py
 blender -b -P blender_mattr_exporter/tests/test_phase5.py
 blender -b -P blender_mattr_exporter/tests/test_phase6.py
+blender -b -P blender_mattr_exporter/tests/test_phase7.py
+blender -b -P blender_mattr_exporter/tests/test_phase8.py
 ```
 
 ## 통합 테스트 실행
 
-`run_all.py`는 하나의 Blender 프로세스에서 Phase 0~6를 순차적으로 실행한다.
+`run_all.py`는 하나의 Blender 프로세스에서 Phase 0~8을 순차적으로 실행한다.
 
 ```bash
 blender -b -P blender_mattr_exporter/tests/run_all.py

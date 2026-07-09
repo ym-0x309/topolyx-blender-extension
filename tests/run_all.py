@@ -25,6 +25,8 @@ from blender_mattr_exporter.tests import (
     test_phase4,
     test_phase5,
     test_phase6,
+    test_phase7,
+    test_phase8,
 )
 
 
@@ -36,6 +38,8 @@ _TEST_MODULES = [
     test_phase4,
     test_phase5,
     test_phase6,
+    test_phase7,
+    test_phase8,
 ]
 
 
@@ -54,7 +58,7 @@ def main() -> int:
 
     print("\n========== Summary ==========")
     if not failed:
-        print("All Phase 0~6 tests passed")
+        print("All Phase 0~8 tests passed")
         return 0
 
     print(f"{len(failed)} test module(s) failed:")

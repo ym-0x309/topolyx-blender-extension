@@ -204,6 +204,29 @@ def extract_topology(mesh: bpy.types.Mesh, converter: CoordinateConverter) -> To
 - `face_offsets`는 `mesh.polygons`의 인덱스 순서를 따른다.
 - 반환값에는 `element_counts`와 `positions`, `edges`, `corner_vertices`, `corner_edges`, `face_offsets`가 포함된다.
 
+## `mattr_mesh_import.py`
+
+- **역할**: MATTR topology 배열(positions, edges, corner_vertices, corner_edges, face_offsets)로 Blender `bpy.types.Mesh` 데이터 블록을 복원한다.
+
+### Public API
+
+```python
+def build_blender_mesh(
+    name: str,
+    positions: Sequence[float],
+    edges: Sequence[int],
+    corner_vertices: Sequence[int],
+    corner_edges: Sequence[int],
+    face_offsets: Sequence[int],
+    winding: str = "CCW",
+) -> bpy.types.Mesh
+```
+
+- `from_pydata`를 사용하여 topology를 복원한다.
+- `winding`이 `"CW"`이면 각 face의 corner 순서와 `corner_edges`를 함께 reverse하여 Blender의 CCW 기준에 맞춘다.
+- 생성 후 `mesh.loops[i].edge_index`가 `corner_edges[i]`와 일치하도록 강제한다.
+- duplicate edge가 있으면 `ValueError`를 발생시킨다.
+
 ## `mattr_attribute.py`
 
 - **역할**: Blender `bpy.types.Mesh` 데이터 블록의 attribute를 MATTR attribute로 변환한다.
@@ -240,7 +263,30 @@ def mattr_component_type_to_blender(
 
 - MATTR의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
 - `F32×4`는 기본적으로 `FLOAT_COLOR`로 환산되며, `use_byte_color=True`이면 `BYTE_COLOR`로 환산한다.
+- `U32×1`과 `U32×2`는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로 유지한 채 `INT`/`INT32_2D`로 환산한다.
+- `INT32_2D`의 `foreach_get`/`foreach_set` property는 `"value"`이다.
 - 지원하지 않는 조합이면 `ValueError`를 발생시킨다.
+
+## `mattr_attribute_import.py`
+
+- **역할**: 이미 생성된 Blender `bpy.types.Mesh` 데이터 블록에 MATTR attribute를 복원한다.
+
+### Public API
+
+```python
+def apply_attributes(
+    mesh: bpy.types.Mesh,
+    attributes: Sequence[Attribute],
+    bin_data: bytes,
+    warnings: Optional[List[str]] = None,
+) -> List[str]
+```
+
+- `mesh`의 topology가 완성된 상태에서 호출한다.
+- `BinaryBufferReader`로 binary를 읽고, `mattr_component_type_to_blender()`로 Blender attribute type을 결정한다.
+- `position`, `material_index` 등 Blender internal/reserved 이름과 충돌하는 이름은 `import_` prefix를 붙여 rename한다.
+- U32 attribute는 비트 패턴을 그대로 I32로 해석하여 저장한다.
+- 반환값은 경고 메시지 목록이다.
 
 ## `mattr_coordinate.py`
 
@@ -265,15 +311,29 @@ def __init__(self, preset: str) -> None
 - Right-handed 좌표계만 지원한다.
 
 ```python
+@classmethod
+def from_coordinate_system(cls, cs: CoordinateSystem) -> CoordinateConverter
+```
+- `CoordinateSystem` 객체로 변환기를 생성한다. Importer에서 파일의 `coordinate_system`을 직접 읽어올 때 사용한다.
+- `meters_per_unit`에 따른 단위 스케일도 함께 처리한다.
+
+```python
+@property
+def winding(self) -> str
+```
+- target 좌표계의 winding(`"CW"` 또는 `"CCW"`)을 반환한다.
+
+```python
 def convert_position(self, v: Vector) -> Vector
 ```
 - Blender local/world position을 target local/world position으로 변환한다.
+- `meters_per_unit`에 따라 위치를 스케일한다.
 
 ```python
 def convert_matrix(self, m: Matrix) -> Matrix
 ```
 - Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다.
-- ``M_target = M_cs @ M_blender @ M_cs^-1``를 적용한다.
+- ``M_target = S^-1 @ M @ M_blender @ M^-1 @ S``를 적용한다. (`S`는 `meters_per_unit` uniform scale)
 
 ```python
 def inverse_convert_position(self, v: Vector) -> Vector
@@ -284,7 +344,7 @@ def inverse_convert_position(self, v: Vector) -> Vector
 def inverse_convert_matrix(self, m: Matrix) -> Matrix
 ```
 - target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다.
-- ``M_blender = M_cs^-1 @ M_target @ M_cs``를 적용한다.
+- ``M_blender = S @ M^-1 @ M_target @ M @ S^-1``를 적용한다.
 
 ## `mattr_utils.py`
 
@@ -474,9 +534,15 @@ def tempdir() -> Path
 ```
 - 테스트용 임시 디렉터리를 Path 객체로 반환한다.
 
+```python
+def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh
+```
+- MATTR 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+- Phase 7/8 테스트에서 mesh 생성 로직을 공유하기 위해 사용한다.
+
 ## `tests/run_all.py`
 
-- **역할**: Blender 백그라운드 모드에서 Phase 0~6 테스트를 순차 실행하는 통합 러너.
+- **역할**: Blender 백그라운드 모드에서 Phase 0~8 테스트를 순차 실행하는 통합 러너.
 
 ### Public API
 
@@ -484,7 +550,7 @@ def tempdir() -> Path
 def main() -> int
 ```
 
-- Phase 0~6 테스트 모듈을 순차 실행한다.
+- Phase 0~8 테스트 모듈을 순차 실행한다.
 - 모든 테스트가 통과하면 `0`, 실패하면 `1`을 반환한다.
 
 ## `tests/test_phase0.py`
@@ -514,3 +580,11 @@ def main() -> int
 ## `tests/test_phase6.py`
 
 - **역할**: Blender 백그라운드 모드에서 양방향 좌표 변환, 행렬 직렬화/역직렬화, binary reader, attribute 역매핑, `mattr_reader`를 검증.
+
+## `tests/test_phase7.py`
+
+- **역할**: Blender 백그라운드 모드에서 `mattr_mesh_import.py`의 topology 복원 기능을 검증. Default Cube, 빈 메시, loose vertex/edge, N-gon, mixed face, CW winding reverse를 포함한다.
+
+## `tests/test_phase8.py`
+
+- **역할**: Blender 백그라운드 모드에서 `mattr_attribute_import.py`의 attribute 복원 기능을 검증. POINT/EDGE/FACE/CORNER domain의 FLOAT, INT, FLOAT_COLOR, FLOAT2, INT32_2D attribute round-trip, 다중 attribute, 예약어 이름 rename, U32 bit-cast를 포함한다.

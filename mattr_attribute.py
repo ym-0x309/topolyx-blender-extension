@@ -28,7 +28,7 @@ _BLENDER_TO_MATTR_TYPE_MAP = {
     "FLOAT_VECTOR": ("F32", 3, "vector"),
     "FLOAT_COLOR": ("F32", 4, "color"),
     "BYTE_COLOR": ("F32", 4, "color"),
-    "INT32_2D": ("I32", 2, "vector"),
+    "INT32_2D": ("I32", 2, "value"),
 }
 
 # (MATTR component_type, component_count) → (Blender data_type, foreach_get property)
@@ -37,7 +37,7 @@ _MATTR_TO_BLENDER_TYPE_MAP = {
     ("F32", 2): ("FLOAT2", "vector"),
     ("F32", 3): ("FLOAT_VECTOR", "vector"),
     ("I32", 1): ("INT", "value"),
-    ("I32", 2): ("INT32_2D", "vector"),
+    ("I32", 2): ("INT32_2D", "value"),
 }
 
 _SUPPORTED_DOMAINS = {"POINT", "EDGE", "FACE", "CORNER"}
@@ -166,6 +166,9 @@ def mattr_component_type_to_blender(
 ) -> Tuple[str, str]:
     """MATTR attribute descriptor를 Blender attribute type으로 변환한다.
 
+    U32는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로
+    유지한 채 signed 32-bit(INT/INT32_2D)로 해석한다. 이는 의도된 동작이다.
+
     Returns:
         (blender_data_type, prop_name): Blender attribute 생성 및 쓰기에 사용할
         data_type과 foreach_set/foreach_get property 이름.
@@ -173,12 +176,24 @@ def mattr_component_type_to_blender(
     Raises:
         ValueError: 지원하지 않는 (component_type, component_count) 조합일 경우.
     """
-    key = (component_type, component_count)
     if component_type == "F32" and component_count == 4:
         if use_byte_color:
             return "BYTE_COLOR", "color"
         return "FLOAT_COLOR", "color"
 
+    if component_type == "U32":
+        # Blender에는 unsigned 32-bit attribute type이 없다.
+        # U32 비트 패턴을 그대로 I32로 해석(reinterpret cast)하여 저장한다.
+        if component_count == 1:
+            return "INT", "value"
+        if component_count == 2:
+            return "INT32_2D", "value"
+        raise ValueError(
+            f"U32 attribute with component_count {component_count} is not supported; "
+            "only U32x1 and U32x2 can be reinterpreted as I32"
+        )
+
+    key = (component_type, component_count)
     result = _MATTR_TO_BLENDER_TYPE_MAP.get(key)
     if result is None:
         raise ValueError(

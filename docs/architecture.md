@@ -150,6 +150,81 @@ def read_mattr_from_data(json_data: dict, bin_data: bytes) -> MattrFile
 - 이미 메모리에 로드된 JSON dict와 binary bytes에서 `MattrFile`을 생성한다.
 - `validate_mattr()`을 먼저 호출한다.
 
+## `mattr_importer.py`
+
+- **역할**: `MattrFile` 데이터를 Blender 씬의 메시 오브젝트로 복원한다.
+
+### Public API
+
+```python
+class MattrImportError(Exception)
+```
+
+- import 중 치명적 오류 발생 시 발생하는 예외.
+
+```python
+def import_mattr(
+    filepath: str | Path,
+    import_attributes: bool = True,
+    apply_transform: bool = False,
+    progress_callback: Optional[Callable[[int, int], None]] = None,
+) -> List[str]
+```
+
+- MATTR 파일을 읽어 Blender 씬으로 import한다.
+- `import_attributes=False`이면 attribute 복원을 건다.
+- `apply_transform=True`이면 object world matrix를 mesh vertex에 굽고 object matrix를 identity로 reset한다. shared mesh는 이 경우 복제된다.
+- `(current_step, total_steps)`를 전달하는 progress_callback을 선택적으로 받는다.
+- 복원 중 발생한 경고 메시지 목록을 반환한다.
+
+### Internal helpers
+
+- `_build_mesh()`: `MattrFile.meshes[]` 항목 하나를 Blender `Mesh`로 변환
+- `_create_object()`: `MattrFile.objects[]` 항목 하나를 Blender `Object`로 생성 및 씬 링크
+- `_apply_transform_to_mesh()`: world matrix를 mesh vertex에 적용
+- `_cleanup_import()`: 실패 시 생성된 object/mesh 삭제
+
+## `mattr_import_operator.py`
+
+- **역할**: `File > Import` 메뉴에서 실행되는 Blender Operator를 제공한다.
+
+### Public API
+
+```python
+class MATTR_OT_import_mesh(Operator, ImportHelper)
+```
+
+- **Operator 식별자**: `import_mesh.mattr`
+- **레이블**: `Import MATTR`
+- **파일 확장자**: `.mattr.json`
+- **bl_options**: `{"PRESET", "UNDO"}`
+
+#### 클래스 속성
+
+| 이름 | 타입 | 역할 |
+|------|------|------|
+| `bl_idname` | `str` | Operator 고유 ID |
+| `bl_label` | `str` | UI에 표시되는 이름 |
+| `filename_ext` | `str` | 기본 파일 확장자 |
+| `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
+| `import_attributes` | `BoolProperty` | attribute 복원 여부 |
+| `apply_transform` | `BoolProperty` | object transform을 mesh vertex에 굽기 여부 |
+
+#### 메서드
+
+```python
+def draw(self, context: bpy.types.Context) -> None
+```
+- 파일 열기 대화상자 왼쪽 패널에 옵션을 그린다.
+
+```python
+def execute(self, context: bpy.types.Context) -> set[str]
+```
+- `mattr_importer.import_mattr()`를 호출하여 import를 수행한다.
+- 진행률 표시줄을 업데이트한다.
+- 발생한 경고를 UI와 콘솔에 노출한다.
+- 성공 시 `{'FINISHED'}`를 반환한다.
+
 ## `mattr_types.py`
 
 - **역할**: MATTR JSON을 표현하는 데이터 클래스(`DataDescriptor`, `Topology`, `Mesh`, `ObjectEntry`, `MattrFile` 등)를 정의한다.
@@ -588,3 +663,7 @@ def main() -> int
 ## `tests/test_phase8.py`
 
 - **역할**: Blender 백그라운드 모드에서 `mattr_attribute_import.py`의 attribute 복원 기능을 검증. POINT/EDGE/FACE/CORNER domain의 FLOAT, INT, FLOAT_COLOR, FLOAT2, INT32_2D attribute round-trip, 다중 attribute, 예약어 이름 rename, U32 bit-cast를 포함한다.
+
+## `tests/test_phase9.py`
+
+- **역할**: Blender 백그라운드 모드에서 `mattr_importer.py`의 end-to-end import 기능을 검증. round-trip, 다중 오브젝트, shared mesh, apply_transform, empty mesh, attribute toggle, reserved name 처리를 포함한다.

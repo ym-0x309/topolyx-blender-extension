@@ -1,4 +1,4 @@
-"""Phase 0~5 테스트를 하나의 Blender 백그라운드 프로세스에서 순차 실행한다.
+"""Phase 0~9 tests를 하나의 Blender 백그라운드 프로세스에서 순차 실행한다.
 
 Usage:
     blender -b -P blender_mattr_exporter/tests/run_all.py
@@ -27,6 +27,7 @@ from blender_mattr_exporter.tests import (
     test_phase6,
     test_phase7,
     test_phase8,
+    test_phase9,
 )
 
 
@@ -40,6 +41,7 @@ _TEST_MODULES = [
     test_phase6,
     test_phase7,
     test_phase8,
+    test_phase9,
 ]
 
 
@@ -58,7 +60,7 @@ def main() -> int:
 
     print("\n========== Summary ==========")
     if not failed:
-        print("All Phase 0~8 tests passed")
+        print("All Phase 0~9 tests passed")
         return 0
 
     print(f"{len(failed)} test module(s) failed:")

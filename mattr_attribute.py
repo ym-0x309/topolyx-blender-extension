@@ -38,6 +38,8 @@ _MATTR_TO_BLENDER_TYPE_MAP = {
     ("F32", 3): ("FLOAT_VECTOR", "vector"),
     ("I32", 1): ("INT", "value"),
     ("I32", 2): ("INT32_2D", "value"),
+    ("U32", 1): ("INT", "value"),
+    ("U32", 2): ("INT32_2D", "value"),
 }
 
 _SUPPORTED_DOMAINS = {"POINT", "EDGE", "FACE", "CORNER"}

@@ -26,9 +26,11 @@ blender_mattr_exporter/
 ├── mattr_coordinate.py         # Bidirectional coordinate system conversion
 ├── mattr_utils.py              # Shared utilities (matrix serialization, etc.)
 ├── mattr_validator.py          # Output file validation
+├── mattr_importer.py           # End-to-end import entry point
+├── mattr_import_operator.py    # File open dialog and import Operator
 └── tests/
     ├── common.py               # Common test helpers
-    ├── run_all.py              # Phase 0~8 integrated test runner
+    ├── run_all.py              # Phase 0~9 integrated test runner
     ├── test_phase0.py          # Extension registration / Operator smoke test
     ├── test_phase1.py          # Topology export validation
     ├── test_phase2.py          # Coordinate system and Object Transform validation
@@ -37,7 +39,8 @@ blender_mattr_exporter/
     ├── test_phase5.py          # Edge cases and validation strengthening
     ├── test_phase6.py          # Shared utilities and reader validation
     ├── test_phase7.py          # Topology import validation
-    └── test_phase8.py          # Attribute import validation
+    ├── test_phase8.py          # Attribute import validation
+    └── test_phase9.py          # End-to-end importer validation
 ```
 
 ## Extension Lifecycle
@@ -52,9 +55,11 @@ blender_mattr_exporter/
 `register()` registers the following with Blender:
 
 - `MATTR_OT_export_mesh` Operator
-- `File > Export` menu item
+- `MATTR_OT_import_mesh` Operator
+- `File > Export > MATTR (.mattr.json)` menu item
+- `File > Import > MATTR (.mattr.json)` menu item
 
-### 3. Usage Flow
+### 3. Export Usage Flow
 
 1. The user selects `File > Export > MATTR (.mattr.json)`.
 2. The Operator, inheriting from `ExportHelper`, opens the file save dialog.
@@ -63,10 +68,19 @@ blender_mattr_exporter/
 5. `mattr_writer` creates `.mattr.json` and `.mattr.bin` based on each object's `obj.data`. The same mesh data block is written only once.
 6. After writing, `mattr_validator` validates the output files.
 
-### 4. Deactivation
+### 4. Import Usage Flow
+
+1. The user selects `File > Import > MATTR (.mattr.json)`.
+2. The Operator, inheriting from `ImportHelper`, opens the file open dialog.
+3. The user chooses a `.mattr.json` file and presses Import.
+4. The Operator's `execute()` is called and invokes `mattr_importer.import_mattr()`.
+5. `mattr_importer` reads the file pair, reconstructs Blender meshes, restores attributes, and creates objects in the active collection.
+6. Imported objects are selected and the last one is made active.
+
+### 5. Deactivation
 
 - When deactivated, Blender calls `unregister()`.
-- It removes the registered Operator and menu item.
+- It removes the registered Operators and menu items.
 
 ## Key Design Decisions
 
@@ -94,7 +108,12 @@ blender_mattr_exporter/
 - **Attribute import handling**:
   - Restores `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes onto a Blender Mesh.
   - `U32` attributes are stored as signed `INT`/`INT32_2D` while preserving the underlying bit pattern, because Blender has no unsigned 32-bit attribute type.
-  - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_`.
+  - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_` and a warning is emitted.
+- **Importer core**:
+  - `mattr_importer.py` reads a MATTR file pair and creates Blender mesh objects in the active layer collection.
+  - File-level mesh sharing is preserved when `apply_transform=False`.
+  - `apply_transform=True` bakes the object world matrix into mesh vertices; shared meshes are duplicated so each object can be baked independently.
+  - Imported objects are selected and the last one is made active.
 
 ## Tests
 

@@ -353,7 +353,7 @@ def test_reserved_attribute_name_renamed():
         warnings = apply_attributes(
             imported_mesh, mattr_file.meshes[0].attributes, bin_data
         )
-        assert not warnings, f"Unexpected warnings: {warnings}"
+        assert any("position" in w for w in warnings), f"Expected rename warning, got {warnings}"
 
         imported_attr = imported_mesh.attributes.get("import_position")
         assert imported_attr is not None

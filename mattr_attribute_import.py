@@ -105,7 +105,7 @@ def _apply_single_attribute(
             f"({actual_count} vs {expected_count})"
         )
 
-    resolved_name = _resolve_attribute_name(name, used_names)
+    resolved_name, rename_warning = _resolve_attribute_name(name, used_names)
 
     try:
         blender_attr = mesh.attributes.new(resolved_name, blender_type, domain)
@@ -117,7 +117,7 @@ def _apply_single_attribute(
     except Exception as exc:
         return f"Skipping attribute '{resolved_name}': failed to write values ({exc})"
 
-    return None
+    return rename_warning
 
 
 def _read_attribute_values(reader: BinaryBufferReader, desc: DataDescriptor):
@@ -148,15 +148,23 @@ def _read_u32_as_i32(reader: BinaryBufferReader, offset: int, count: int):
     return i32_values
 
 
-def _resolve_attribute_name(name: str, used_names: set[str]) -> str:
-    """Avoid collisions with reserved names and previously imported attributes."""
+def _resolve_attribute_name(name: str, used_names: set[str]) -> tuple[str, Optional[str]]:
+    """Avoid collisions with reserved names and previously imported attributes.
+
+    Returns:
+        (resolved_name, warning): resolved_name is the safe name to use in Blender.
+        warning is None if no rename occurred, otherwise a user-facing message.
+    """
+    warning: Optional[str] = None
     if name.startswith(".") or name.lower() in _RESERVED_ATTRIBUTE_NAMES:
         resolved = _IMPORT_NAME_PREFIX + name
+        warning = f"Attribute '{name}' renamed to '{resolved}' to avoid reserved name collision"
     else:
         resolved = name
 
     while resolved in used_names or resolved.lower() in _RESERVED_ATTRIBUTE_NAMES:
         resolved = _IMPORT_NAME_PREFIX + resolved
+        warning = f"Attribute '{name}' renamed to '{resolved}' to avoid name collision"
 
     used_names.add(resolved)
-    return resolved
+    return resolved, warning

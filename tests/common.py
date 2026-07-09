@@ -151,6 +151,12 @@ def tempdir() -> Path:
     return Path(tempfile.mkdtemp(prefix="mattr_test_"))
 
 
+def import_mattr_file(json_path: Path, **operator_kwargs) -> None:
+    """MATTR 파일을 Import Operator로 불러온다."""
+    result = bpy.ops.import_mesh.mattr(filepath=str(json_path), **operator_kwargs)
+    assert result == {"FINISHED"}, f"Import operator returned {result}"
+
+
 def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
     """MATTR 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 

@@ -1,6 +1,7 @@
 """MATTR 출력 파일의 유효성을 검증한다."""
 
 import json
+import math
 import re
 import struct
 from pathlib import Path
@@ -11,13 +12,15 @@ _COMPONENT_SIZES = {
     "F32": 4,
     "I32": 4,
     "U32": 4,
+    "BOOL": 1,
 }
 
-_VERSION_PATTERN = re.compile(r"^\d+\.\d+\.\d+$")
+_VERSION_PATTERN = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
-# 이 익스포터/리더가 지원하는 MATTR 포맷 버전.
-_SUPPORTED_VERSION = "0.1.0"
+# 이 익스포터/리더가 지원하는 MATTR 포맷 버전(문서 기준 x.y.z).
+_SUPPORTED_VERSION = "0.2.0"
 _SUPPORTED_MAJOR_VERSION = _SUPPORTED_VERSION.split(".")[0]
+_SUPPORTED_MINOR_VERSION = _SUPPORTED_VERSION.split(".")[1]
 
 # 64-bit unsigned 최대값. byte_offset + byte_length overflow를 방지하기 위한 상한.
 _MAX_BUFFER_OFFSET = 2**64 - 1
@@ -57,6 +60,7 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
     _validate_header(json_data)
     _validate_buffer(json_data, bin_data)
     _validate_coordinate_system(json_data)
+    _validate_names(json_data)
 
     mesh_count = len(json_data["meshes"])
     for mesh_index, mesh in enumerate(json_data["meshes"]):
@@ -86,11 +90,18 @@ def _validate_header(json_data: Dict[str, Any]) -> None:
     if not isinstance(version, str) or not _VERSION_PATTERN.match(version):
         _fail(f"header.version must be in x.y.z format, got: {version!r}")
 
-    major = version.split(".")[0]
+    parts = version.split(".")
+    major = parts[0]
+    minor = parts[1] if len(parts) > 1 else "0"
     if major != _SUPPORTED_MAJOR_VERSION:
         _fail(
             f"Unsupported major version: {version!r} "
             f"(supported major version: {_SUPPORTED_MAJOR_VERSION}.x.x)"
+        )
+    if minor != _SUPPORTED_MINOR_VERSION:
+        _fail(
+            f"Unsupported minor version: {version!r} "
+            f"(supported version: {_SUPPORTED_MAJOR_VERSION}.{_SUPPORTED_MINOR_VERSION}.x)"
         )
 
 
@@ -134,8 +145,51 @@ def _validate_coordinate_system(json_data: Dict[str, Any]) -> None:
         _fail(f"up_axis and forward_axis must not be parallel: {up}, {forward}")
 
     meters_per_unit = cs.get("meters_per_unit")
-    if not isinstance(meters_per_unit, (int, float)) or meters_per_unit <= 0:
-        _fail(f"coordinate_system.meters_per_unit must be positive, got: {meters_per_unit!r}")
+    if not isinstance(meters_per_unit, (int, float)):
+        _fail(
+            f"coordinate_system.meters_per_unit must be a number, got: {meters_per_unit!r}"
+        )
+    if not math.isfinite(meters_per_unit) or meters_per_unit <= 0:
+        _fail(
+            f"coordinate_system.meters_per_unit must be a positive finite number, "
+            f"got: {meters_per_unit!r}"
+        )
+
+
+def _validate_names(json_data: Dict[str, Any]) -> None:
+    """object/mesh/attribute 이름이 비어 있거나 잘못 중복되지 않는지 검증한다."""
+    object_names = set()
+    for obj_index, obj in enumerate(json_data.get("objects", [])):
+        name = obj.get("name")
+        if not name or not isinstance(name, str):
+            _fail(f"objects[{obj_index}].name must be a non-empty string")
+        if name in object_names:
+            _fail(f"objects[{obj_index}]: duplicate object name '{name}'")
+        object_names.add(name)
+
+    mesh_names = set()
+    for mesh_index, mesh in enumerate(json_data.get("meshes", [])):
+        name = mesh.get("name")
+        if not name or not isinstance(name, str):
+            _fail(f"meshes[{mesh_index}].name must be a non-empty string")
+        if name in mesh_names:
+            _fail(f"meshes[{mesh_index}]: duplicate mesh name '{name}'")
+        mesh_names.add(name)
+
+        attr_names = set()
+        for attr_index, attr in enumerate(mesh.get("attributes", [])):
+            name = attr.get("name")
+            if not name or not isinstance(name, str):
+                _fail(
+                    f"meshes[{mesh_index}].attributes[{attr_index}].name "
+                    f"must be a non-empty string"
+                )
+            if name in attr_names:
+                _fail(
+                    f"meshes[{mesh_index}].attributes[{attr_index}]: "
+                    f"duplicate attribute name '{name}'"
+                )
+            attr_names.add(name)
 
 
 def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes, mesh_index: int) -> None:
@@ -200,6 +254,7 @@ def _validate_mesh(mesh: Dict[str, Any], bin_data: bytes, mesh_index: int) -> No
     _validate_face_offsets(topo["face_offsets"], counts, bin_data, prefix)
     _validate_index_ranges(topo, counts, bin_data, prefix)
     _validate_corner_edge_consistency(topo, counts, bin_data, prefix)
+    _validate_edges(topo, counts, bin_data, prefix)
     _validate_attributes(mesh, bin_data, prefix)
 
 
@@ -353,21 +408,39 @@ def _validate_corner_edge_consistency(
                 )
 
 
+def _validate_edges(
+    topo: Dict[str, Any], counts: Dict[str, int], bin_data: bytes, prefix: str
+) -> None:
+    """self-edge 및 중복 edge가 없는지 검증한다."""
+    if counts["edges"] == 0:
+        return
+
+    edges = _unpack_u32(topo["edges"], bin_data)
+    seen = set()
+    for i in range(0, len(edges), 2):
+        v0, v1 = edges[i], edges[i + 1]
+        if v0 == v1:
+            _fail(
+                f"{prefix}.topology.edges: self-edge detected at edge {i // 2}: "
+                f"({v0}, {v1})"
+            )
+        key = (min(v0, v1), max(v0, v1))
+        if key in seen:
+            _fail(
+                f"{prefix}.topology.edges: duplicate edge detected at edge {i // 2}: "
+                f"({v0}, {v1})"
+            )
+        seen.add(key)
+
+
 def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> None:
     """일반 attribute의 descriptor와 domain/element_count 일관성을 검증한다."""
     counts = mesh["element_counts"]
     attributes = mesh.get("attributes", [])
-    seen_names = set()
 
     for attr_index, attr in enumerate(attributes):
         attr_prefix = f"{prefix}.attributes[{attr_index}]"
         name = attr.get("name")
-        if not name:
-            _fail(f"{attr_prefix}: attribute name must be a non-empty string")
-        if name in seen_names:
-            _fail(f"{attr_prefix}: duplicate attribute name '{name}'")
-        seen_names.add(name)
-
         domain = attr.get("domain")
         if domain not in _DOMAIN_COUNT_KEY:
             _fail(f"{attr_prefix}('{name}'): invalid domain '{domain}'")

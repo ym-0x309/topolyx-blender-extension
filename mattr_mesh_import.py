@@ -102,6 +102,8 @@ def _validate_topology_arrays(
     seen_edges = set()
     for i in range(0, len(edges), 2):
         v0, v1 = edges[i], edges[i + 1]
+        if v0 == v1:
+            raise ValueError(f"Self-edge detected: ({v0}, {v1})")
         key = (min(v0, v1), max(v0, v1))
         if key in seen_edges:
             raise ValueError(f"Duplicate edge detected: ({v0}, {v1})")

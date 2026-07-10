@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Callable, List, Optional, Sequence
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Vector
 
 from .mattr_attribute_import import apply_attributes
 from .mattr_binary import BinaryBufferReader
@@ -24,7 +24,6 @@ class MattrImportError(Exception):
 def import_mattr(
     filepath: str | Path,
     import_attributes: bool = True,
-    apply_transform: bool = False,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> List[str]:
     """Import a MATTR file pair into the current Blender scene.
@@ -33,9 +32,6 @@ def import_mattr(
         filepath: Path to the .mattr.json file. A .mattr.bin with the same
             basename must exist in the same directory.
         import_attributes: Whether to restore mesh attributes.
-        apply_transform: If True, bake the object world matrix into the mesh
-            vertices and reset the object transform to identity. Shared meshes
-            are duplicated when this option is enabled.
         progress_callback: Optional callback receiving (current_step, total_steps).
 
     Returns:
@@ -66,7 +62,6 @@ def import_mattr(
             progress_callback(current, total_steps)
 
     mesh_map: dict[int, bpy.types.Mesh] = {}
-    mesh_usage: dict[int, int] = {}
 
     try:
         for mesh_index, mesh_data in enumerate(mattr_file.meshes):
@@ -86,10 +81,6 @@ def import_mattr(
                 obj_data,
                 mesh_map[obj_data.index],
                 converter,
-                apply_transform,
-                mesh_usage,
-                created_meshes,
-                warnings,
             )
             created_objects.append(obj)
             _report_progress(len(mattr_file.meshes) + obj_index + 1)
@@ -181,22 +172,9 @@ def _create_object(
     obj_data: ObjectEntry,
     source_mesh: bpy.types.Mesh,
     converter: CoordinateConverter,
-    apply_transform: bool,
-    mesh_usage: dict[int, int],
-    created_meshes: List[bpy.types.Mesh],
-    warnings: List[str],
 ) -> bpy.types.Object:
     """Create a Blender Object from a MATTR object entry and link it to the scene."""
-    mesh = source_mesh
-    file_mesh_index = obj_data.index
-
-    if apply_transform:
-        if mesh_usage.get(file_mesh_index, 0) > 0:
-            mesh = source_mesh.copy()
-            created_meshes.append(mesh)
-        mesh_usage[file_mesh_index] = mesh_usage.get(file_mesh_index, 0) + 1
-
-    obj = bpy.data.objects.new(obj_data.name or "ImportedObject", mesh)
+    obj = bpy.data.objects.new(obj_data.name or "ImportedObject", source_mesh)
 
     collection = bpy.context.view_layer.active_layer_collection.collection
     collection.objects.link(obj)
@@ -205,18 +183,7 @@ def _create_object(
     blender_matrix = converter.inverse_convert_matrix(blender_matrix)
     obj.matrix_world = blender_matrix
 
-    if apply_transform:
-        _apply_transform_to_mesh(mesh, blender_matrix)
-        obj.matrix_world = Matrix.Identity(4)
-
     return obj
-
-
-def _apply_transform_to_mesh(mesh: bpy.types.Mesh, matrix: Matrix) -> None:
-    """Apply a world matrix to all vertex coordinates of a mesh in-place."""
-    for vertex in mesh.vertices:
-        vertex.co = matrix @ vertex.co
-    mesh.update()
 
 
 def _select_imported_objects(objects: Sequence[bpy.types.Object]) -> None:

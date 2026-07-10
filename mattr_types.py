@@ -1,4 +1,4 @@
-"""MATTR 포맷 v0.1.0에 사용하는 데이터 모델."""
+"""MATTR 포맷 v0.2.0에 사용하는 데이터 모델."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -10,7 +10,7 @@ class DataDescriptor:
 
     byte_offset: int
     byte_length: int
-    component_type: str  # "F32" | "I32" | "U32"
+    component_type: str  # "F32" | "I32" | "U32" | "BOOL"
     component_count: int
     element_count: int
 
@@ -188,7 +188,7 @@ class Header:
     """MATTR 파일 헤더."""
 
     format: str = "MATTR"
-    version: str = "0.1.0"
+    version: str = "0.2"
 
     def to_dict(self) -> Dict[str, str]:
         return {"format": self.format, "version": self.version}

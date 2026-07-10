@@ -3,7 +3,7 @@
 import array
 import struct
 from pathlib import Path
-from typing import Sequence
+from typing import Iterable, Sequence
 
 
 class BinaryBuffer:
@@ -40,6 +40,16 @@ class BinaryBuffer:
         offset = len(self._data)
         buf = values if isinstance(values, array.array) else array.array("I", values)
         self._data.extend(buf.tobytes())
+        return offset
+
+    def append_bool(self, values: Iterable[int]) -> int:
+        """BOOL 배열을 1바이트씩 추가하고 시작 byte offset을 반환한다.
+
+        값은 0 또는 1이어야 하며, 그 외 값은 validator에서 거부된다.
+        """
+        self._align(4)
+        offset = len(self._data)
+        self._data.extend(bytes(1 if v else 0 for v in values))
         return offset
 
     def byte_length(self) -> int:
@@ -92,6 +102,13 @@ class BinaryBufferReader:
             return array.array("I")
         self._check_bounds(offset, count * 4)
         return array.array("I", self._data[offset : offset + count * 4])
+
+    def read_bool(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 BOOL 값을 읽어 array.array('b')로 반환한다."""
+        if count == 0:
+            return array.array("b")
+        self._check_bounds(offset, count)
+        return array.array("b", self._data[offset : offset + count])
 
     def __len__(self) -> int:
         """버퍼의 총 byte 길이를 반환한다."""

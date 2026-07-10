@@ -6,7 +6,7 @@
 
 It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.mattr.json` + `.mattr.bin` file pair.
 
-This extension implements MATTR format version `v0.1.0`.
+This extension implements MATTR format version `v0.2.0`.
 
 ## File Structure
 
@@ -91,10 +91,11 @@ blender_mattr_exporter/
 - **Bidirectional conversion support**: `mattr_coordinate.py` provides inverse coordinate conversion to prepare for future importer implementation.
 - **Attribute handling**:
   - Exports `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes.
-  - Supported Blender data types are `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`.
+  - Supported Blender data types are `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`.
   - `BYTE_COLOR` is stored as normalized `F32×4` in the 0~1 range.
-  - Types not supported in v0.1.0 such as `BOOLEAN`, `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
-  - Hidden/internal attributes starting with `.`, `position`, `sharp_edge/face`, `freestyle_edge/face`, etc. are excluded by default.
+  - `BOOLEAN` is stored as `BOOL×1` (1 byte per element, `0`/`1`).
+  - Types not supported in v0.2.0 such as `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
+  - Hidden/internal attributes starting with `.` and the topology-reserved name `position` are excluded by default. `sharp_edge/face` and `freestyle_edge/face` are exported as regular boolean attributes.
   - Users can specify additional names to skip in the `Excluded Attributes` comma-separated list.
 - **Multi-object export**:
   - Selected mesh objects can be exported at once.
@@ -111,8 +112,7 @@ blender_mattr_exporter/
   - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_` and a warning is emitted.
 - **Importer core**:
   - `mattr_importer.py` reads a MATTR file pair and creates Blender mesh objects in the active layer collection.
-  - File-level mesh sharing is preserved when `apply_transform=False`.
-  - `apply_transform=True` bakes the object world matrix into mesh vertices; shared meshes are duplicated so each object can be baked independently.
+  - File-level mesh sharing is preserved across imported objects.
   - Imported objects are selected and the last one is made active.
 
 ## Tests

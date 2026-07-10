@@ -23,15 +23,12 @@ _DOMAIN_MESH_COLLECTION = {
 
 
 # Attributes that conflict with Blender internal/reserved names.
+# sharp_edge/face, freestyle_edge/face는 v0.2.0부터 정규 attribute로 다룬다.
 _RESERVED_ATTRIBUTE_NAMES = {
     "position",
     "material_index",
     "normal",
     "shade_smooth",
-    "sharp_edge",
-    "sharp_face",
-    "freestyle_edge",
-    "freestyle_face",
 }
 
 _IMPORT_NAME_PREFIX = "import_"
@@ -132,6 +129,8 @@ def _read_attribute_values(reader: BinaryBufferReader, desc: DataDescriptor):
         return reader.read_i32(desc.byte_offset, count)
     elif desc.component_type == "U32":
         return _read_u32_as_i32(reader, desc.byte_offset, count)
+    elif desc.component_type == "BOOL":
+        return reader.read_bool(desc.byte_offset, count)
     else:
         raise ValueError(f"Unsupported component type: {desc.component_type}")
 

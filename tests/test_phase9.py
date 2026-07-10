@@ -129,99 +129,6 @@ def test_import_shared_mesh():
     print("test_import_shared_mesh passed")
 
 
-def test_apply_transform_false_preserves_transform():
-    """apply_transform=False keeps object matrix and shared mesh."""
-    common.clear_scene()
-    bpy.ops.mesh.primitive_cube_add(size=2, location=(1, 2, 3))
-
-    tmpdir = common.tempdir()
-    try:
-        json_path, bin_path = common.export_active_object(tmpdir, "no_apply")
-        common.clear_scene()
-
-        warnings = import_mattr(json_path, apply_transform=False)
-        assert not warnings, f"Unexpected warnings: {warnings}"
-
-        imported_obj = _get_imported_objects()[0]
-        loc = imported_obj.matrix_world.to_translation()
-        assert (loc - Vector((1.0, 2.0, 3.0))).length < 1e-4
-
-        # Vertices should still be in local space (centered around origin)
-        xs = [v.co.x for v in imported_obj.data.vertices]
-        assert min(xs) == -1.0 and max(xs) == 1.0
-    finally:
-        import shutil
-
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-    print("test_apply_transform_false_preserves_transform passed")
-
-
-def test_apply_transform_true_bakes_transform():
-    """apply_transform=True bakes matrix into vertices and resets object matrix."""
-    common.clear_scene()
-    bpy.ops.mesh.primitive_cube_add(size=2, location=(1, 2, 3))
-
-    tmpdir = common.tempdir()
-    try:
-        json_path, bin_path = common.export_active_object(tmpdir, "apply_t")
-        common.clear_scene()
-
-        warnings = import_mattr(json_path, apply_transform=True)
-        assert not warnings, f"Unexpected warnings: {warnings}"
-
-        imported_obj = _get_imported_objects()[0]
-        assert imported_obj.matrix_world == imported_obj.matrix_world.Identity(
-            4
-        ), "Object matrix should be identity"
-
-        # Vertices should be in world space (translated)
-        xs = [v.co.x for v in imported_obj.data.vertices]
-        assert min(xs) >= 0.0 and max(xs) >= 1.0
-    finally:
-        import shutil
-
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-    print("test_apply_transform_true_bakes_transform passed")
-
-
-def test_apply_transform_true_duplicates_shared_mesh():
-    """apply_transform=True duplicates shared meshes so each object can be baked."""
-    common.clear_scene()
-    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
-    original = bpy.context.active_object
-
-    bpy.ops.object.duplicate_move_linked(
-        OBJECT_OT_duplicate={"linked": True, "mode": "INIT"},
-        TRANSFORM_OT_translate={"value": (3, 0, 0)},
-    )
-    duplicate = bpy.context.active_object
-
-    common.select_only([original, duplicate])
-
-    tmpdir = common.tempdir()
-    try:
-        json_path, bin_path = common.export_selected(tmpdir, "linked_apply")
-        common.clear_scene()
-
-        warnings = import_mattr(json_path, apply_transform=True)
-        assert not warnings, f"Unexpected warnings: {warnings}"
-
-        imported_objs = _get_imported_objects()
-        assert len(imported_objs) == 2
-
-        mesh_a = imported_objs[0].data
-        mesh_b = imported_objs[1].data
-        assert mesh_a != mesh_b, "Shared mesh should be duplicated when applying transform"
-    finally:
-        import shutil
-
-        shutil.rmtree(tmpdir, ignore_errors=True)
-
-    print("test_apply_transform_true_duplicates_shared_mesh passed")
-
-
 def test_import_empty_mesh():
     """An empty mesh object is imported into the scene."""
     common.clear_scene()
@@ -350,9 +257,6 @@ def main():
     test_import_default_cube_roundtrip()
     test_import_multi_object()
     test_import_shared_mesh()
-    test_apply_transform_false_preserves_transform()
-    test_apply_transform_true_bakes_transform()
-    test_apply_transform_true_duplicates_shared_mesh()
     test_import_empty_mesh()
     test_import_attributes_disabled()
     test_import_reserved_attribute_name_renamed()

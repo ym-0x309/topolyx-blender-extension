@@ -166,14 +166,12 @@ class MattrImportError(Exception)
 def import_mattr(
     filepath: str | Path,
     import_attributes: bool = True,
-    apply_transform: bool = False,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> List[str]
 ```
 
 - MATTR 파일을 읽어 Blender 씬으로 import한다.
 - `import_attributes=False`이면 attribute 복원을 건다.
-- `apply_transform=True`이면 object world matrix를 mesh vertex에 굽고 object matrix를 identity로 reset한다. shared mesh는 이 경우 복제된다.
 - `(current_step, total_steps)`를 전달하는 progress_callback을 선택적으로 받는다.
 - 복원 중 발생한 경고 메시지 목록을 반환한다.
 
@@ -181,7 +179,6 @@ def import_mattr(
 
 - `_build_mesh()`: `MattrFile.meshes[]` 항목 하나를 Blender `Mesh`로 변환
 - `_create_object()`: `MattrFile.objects[]` 항목 하나를 Blender `Object`로 생성 및 씬 링크
-- `_apply_transform_to_mesh()`: world matrix를 mesh vertex에 적용
 - `_cleanup_import()`: 실패 시 생성된 object/mesh 삭제
 
 ## `mattr_import_operator.py`
@@ -208,7 +205,6 @@ class MATTR_OT_import_mesh(Operator, ImportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `import_attributes` | `BoolProperty` | attribute 복원 여부 |
-| `apply_transform` | `BoolProperty` | object transform을 mesh vertex에 굽기 여부 |
 
 #### 메서드
 
@@ -237,6 +233,7 @@ def execute(self, context: bpy.types.Context) -> set[str]
 class DataDescriptor
 ```
 - `byte_offset`, `byte_length`, `component_type`, `component_count`, `element_count`를 포함한다.
+- `component_type`은 `"F32"`, `"I32"`, `"U32"`, `"BOOL"` 중 하나이다.
 
 ```python
 @dataclass
@@ -263,7 +260,7 @@ class Attribute
 class Header
 ```
 
-- `format`은 `"MATTR"`, `version`은 `"0.1.0"`이다.
+- `format`은 `"MATTR"`, `version`은 `"0.2"`이다.
 
 ## `mattr_mesh.py`
 
@@ -327,8 +324,9 @@ def extract_attributes(
 
 - `mesh.attributes`를 순회하여 지원하는 attribute만 추출한다.
 - 반환값은 `(attributes, warnings)` 튜플이다.
-- 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`이다.
+- 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`이다.
 - `BYTE_COLOR`는 `F32×4`로 정규화한다.
+- `BOOLEAN`은 `BOOL×1`로 저장한다.
 
 ```python
 def mattr_component_type_to_blender(
@@ -339,6 +337,7 @@ def mattr_component_type_to_blender(
 - MATTR의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
 - `F32×4`는 기본적으로 `FLOAT_COLOR`로 환산되며, `use_byte_color=True`이면 `BYTE_COLOR`로 환산한다.
 - `U32×1`과 `U32×2`는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로 유지한 채 `INT`/`INT32_2D`로 환산한다.
+- `BOOL×1`은 `BOOLEAN`으로 환산한다.
 - `INT32_2D`의 `foreach_get`/`foreach_set` property는 `"value"`이다.
 - 지원하지 않는 조합이면 `ValueError`를 발생시킨다.
 
@@ -466,6 +465,12 @@ def append_u32(self, values: Sequence[int]) -> int
 - U32 배열을 추가하고 시작 `byte_offset`을 반환한다.
 
 ```python
+def append_bool(self, values: Iterable[int]) -> int
+```
+
+- BOOL 배열을 1바이트씩 추가하고 시작 `byte_offset`을 반환한다.
+
+```python
 def byte_length(self) -> int
 ```
 - 현재 버퍼의 총 byte 길이를 반환한다.
@@ -493,11 +498,17 @@ def read_f32(self, offset: int, count: int) -> array.array
 def read_i32(self, offset: int, count: int) -> array.array
 ```
 - 지정한 offset부터 count개의 I32 값을 읽어 반환한다.
-
 ```python
 def read_u32(self, offset: int, count: int) -> array.array
 ```
+
 - 지정한 offset부터 count개의 U32 값을 읽어 반환한다.
+
+```python
+def read_bool(self, offset: int, count: int) -> array.array
+```
+
+- 지정한 offset부터 count개의 BOOL 값을 읽어 `array.array('b')`로 반환한다.
 
 ## `mattr_validator.py`
 
@@ -516,9 +527,12 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
 
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
-- `header.version`의 major 버전이 지원 버전(`0.1.0` → `0`)과 일치하는지 검사한다.
+- `header.version`의 major/minor 버전이 지원 버전(`0.2.0` → `0.2`)과 일치하는지 검사한다.
 - `attributes`에 대해 이름 중복, domain, component_type, component_count, element_count, byte offset/length를 검사한다.
 - descriptor의 `byte_offset`과 `byte_length`가 음수가 아닌지 검사한다.
+- `coordinate_system.meters_per_unit`이 양의 유한수인지 검사한다.
+- object/mesh/attribute 이름이 비어 있거나 잘못 중복되지 않는지 검사한다.
+- topology `edges`에 self-edge나 중복 edge가 없는지 검사한다.
 - 조건을 만족하지 않으면 `MattrValidationError`를 발생시킨다.
 
 ```python

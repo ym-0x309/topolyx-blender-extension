@@ -34,6 +34,7 @@ def test_default_cube_with_uvmap():
             "corners": 24,
         }
 
+        # Default Cube에는 UVMap(F32×2×24)와 sharp_face(BOOL×6) attribute가 있다.
         attr = common.find_attribute(data, "UVMap")
         assert attr["domain"] == "CORNER"
 
@@ -44,7 +45,16 @@ def test_default_cube_with_uvmap():
         assert desc["byte_offset"] == 412
         assert desc["byte_length"] == 192
 
-        assert data["buffer"]["byte_length"] == 604
+        sharp_attr = common.find_attribute(data, "sharp_face")
+        assert sharp_attr["domain"] == "FACE"
+        sharp_desc = sharp_attr["data"]
+        assert sharp_desc["component_type"] == "BOOL"
+        assert sharp_desc["component_count"] == 1
+        assert sharp_desc["element_count"] == 6
+        assert sharp_desc["byte_offset"] == 604
+        assert sharp_desc["byte_length"] == 6
+
+        assert data["buffer"]["byte_length"] == 610
     finally:
         import shutil
 
@@ -216,7 +226,7 @@ def test_vertex_color_byte():
 
 
 def test_exclude_internal_attributes():
-    """'.'로 시작하는 내장 attribute와 'position'이 출력에 포함되지 않는지 확인한다."""
+    """'.'로 시작하는 내장 attribute와 'position'은 제외되지만, sharp_face는 포함된다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
 
@@ -229,6 +239,7 @@ def test_exclude_internal_attributes():
         for name in names:
             assert not name.startswith("."), f"Internal attribute exported: {name}"
         assert "position" not in names
+        assert "sharp_face" in names
     finally:
         import shutil
 
@@ -268,24 +279,36 @@ def test_exclude_by_name():
     print("test_exclude_by_name passed")
 
 
-def test_unsupported_boolean_skipped():
-    """BOOLEAN attribute가 오류 없이 제외되는지 확인한다."""
+def test_boolean_attribute_supported():
+    """BOOLEAN attribute가 BOOL×1로 저장되는지 확인한다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    mesh = bpy.context.active_object.data
+
+    values = [1 if i % 2 == 0 else 0 for i in range(len(mesh.polygons))]
+    attr = mesh.attributes.new(name="FaceBool", type="BOOLEAN", domain="FACE")
+    attr.data.foreach_set("value", values)
+    mesh.update()
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "bool_skipped")
+        json_path, bin_path = common.export_active_object(tmpdir, "bool_attr")
         data, bin_data = common.load_result(json_path, bin_path)
 
-        names = {attr["name"] for attr in data["meshes"][0]["attributes"]}
-        assert "sharp_face" not in names
+        attr = common.find_attribute(data, "FaceBool")
+        assert attr["domain"] == "FACE"
+        desc = attr["data"]
+        assert desc["component_type"] == "BOOL"
+        assert desc["component_count"] == 1
+        assert desc["element_count"] == len(mesh.polygons)
+
+        common.assert_bool_values(bin_data, desc, values)
     finally:
         import shutil
 
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    print("test_unsupported_boolean_skipped passed")
+    print("test_boolean_attribute_supported passed")
 
 
 def test_empty_mesh_attributes():
@@ -348,7 +371,7 @@ def main():
     test_vertex_color_byte()
     test_exclude_internal_attributes()
     test_exclude_by_name()
-    test_unsupported_boolean_skipped()
+    test_boolean_attribute_supported()
     test_empty_mesh_attributes()
     test_uv_map_values()
     print("All Phase 3 tests passed")

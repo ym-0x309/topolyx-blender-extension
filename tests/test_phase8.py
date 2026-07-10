@@ -31,6 +31,7 @@ _TYPE_COMPONENT_COUNT = {
     "FLOAT_COLOR": 4,
     "BYTE_COLOR": 4,
     "INT32_2D": 2,
+    "BOOLEAN": 1,
 }
 
 
@@ -52,6 +53,9 @@ def _read_blender_attribute_values(blender_attr):
         prop = "color"
     elif data_type == "INT32_2D":
         buf = array.array("i", [0]) * total_count
+        prop = "value"
+    elif data_type == "BOOLEAN":
+        buf = array.array("b", [0]) * total_count
         prop = "value"
     else:
         raise ValueError(f"Unsupported data type for read-back: {data_type}")
@@ -281,6 +285,42 @@ def test_int32_2d_attribute():
     print("test_int32_2d_attribute passed")
 
 
+def test_face_bool_attribute():
+    """FACE domain BOOLEAN attribute가 round-trip으로 복원되는지 확인한다."""
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    mesh = bpy.context.active_object.data
+
+    values = [1 if i % 2 == 0 else 0 for i in range(len(mesh.polygons))]
+    attr = mesh.attributes.new(name="FaceBool", type="BOOLEAN", domain="FACE")
+    attr.data.foreach_set("value", values)
+    mesh.update()
+
+    tmpdir = common.tempdir()
+    try:
+        json_path, bin_path = common.export_active_object(tmpdir, "face_bool")
+        imported_mesh = common.import_topology_only(json_path, bin_path)
+        mattr_file, bin_data = read_mattr(json_path)
+        warnings = apply_attributes(
+            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+        )
+        assert not warnings, f"Unexpected warnings: {warnings}"
+
+        imported_attr = imported_mesh.attributes.get("FaceBool")
+        assert imported_attr is not None
+        assert imported_attr.data_type == "BOOLEAN"
+        assert imported_attr.domain == "FACE"
+
+        actual = _read_blender_attribute_values(imported_attr)
+        assert actual == values
+    finally:
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("test_face_bool_attribute passed")
+
+
 def test_multiple_attributes():
     """여러 attribute가 동시에 복원되는지 확인한다."""
     common.clear_scene()
@@ -405,6 +445,7 @@ def main():
     test_corner_float_color_attribute()
     test_uvmap_attribute()
     test_int32_2d_attribute()
+    test_face_bool_attribute()
     test_multiple_attributes()
     test_reserved_attribute_name_renamed()
     test_u32_bit_cast_to_i32()

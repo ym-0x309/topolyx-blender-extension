@@ -146,6 +146,13 @@ def assert_u32_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> N
     assert list(actual) == list(expected)
 
 
+def assert_bool_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> None:
+    """binary에서 descriptor 위치의 BOOL 값이 expected와 일치하는지 확인한다."""
+    count = desc["element_count"] * desc["component_count"]
+    actual = struct.unpack_from(f"<{count}b", bin_data, desc["byte_offset"])
+    assert list(actual) == list(expected)
+
+
 def tempdir() -> Path:
     """테스트용 임시 디렉터리를 Path 객체로 반환한다."""
     return Path(tempfile.mkdtemp(prefix="mattr_test_"))

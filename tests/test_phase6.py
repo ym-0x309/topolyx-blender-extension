@@ -119,7 +119,7 @@ def test_read_mattr():
         mattr_file, bin_data = read_mattr(json_path)
 
         assert mattr_file.header.format == "MATTR"
-        assert mattr_file.header.version == "0.1.0"
+        assert mattr_file.header.version == "0.2"
         assert mattr_file.buffer.byte_length == len(bin_data)
         assert len(mattr_file.objects) == 1
         assert len(mattr_file.meshes) == 1

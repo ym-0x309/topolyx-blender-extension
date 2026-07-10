@@ -24,6 +24,7 @@ class AttributeArrays:
 _BLENDER_TO_MATTR_TYPE_MAP = {
     "FLOAT": ("F32", 1, "value"),
     "INT": ("I32", 1, "value"),
+    "BOOLEAN": ("BOOL", 1, "value"),
     "FLOAT2": ("F32", 2, "vector"),
     "FLOAT_VECTOR": ("F32", 3, "vector"),
     "FLOAT_COLOR": ("F32", 4, "color"),
@@ -44,13 +45,10 @@ _MATTR_TO_BLENDER_TYPE_MAP = {
 
 _SUPPORTED_DOMAINS = {"POINT", "EDGE", "FACE", "CORNER"}
 
-# 토폴로지와 중복되거나 내부 Outputplus boolean flag. 경고 없이 무시한다.
+# 토폴로지와 중복되거나 Blender 낮부 selection 관련 attribute는 경고 없이 무시한다.
+# sharp_edge/face, freestyle_edge/face는 v0.2.0부터 포함 대상이므로 제외함.
 _SILENTLY_SKIPPED_NAMES = {
     "position",
-    "sharp_edge",
-    "sharp_face",
-    "freestyle_edge",
-    "freestyle_face",
 }
 
 # domain → element_counts의 필드명
@@ -159,6 +157,11 @@ def _read_attribute_values(
         buf = array.array("i", [0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
         return list(buf)
+    elif component_type == "BOOL":
+        # Blender의 BOOLEAN attribute는 foreach_get이 int 0/1을 받는다.
+        buf = array.array("b", [0]) * total_count
+        attribute.data.foreach_get(prop_name, buf)
+        return list(buf)
 
     raise RuntimeError(f"Unhandled attribute data type: {data_type}")
 
@@ -182,6 +185,14 @@ def mattr_component_type_to_blender(
         if use_byte_color:
             return "BYTE_COLOR", "color"
         return "FLOAT_COLOR", "color"
+
+    if component_type == "BOOL":
+        if component_count == 1:
+            return "BOOLEAN", "value"
+        raise ValueError(
+            f"BOOL attribute with component_count {component_count} is not supported; "
+            "only BOOLx1 is supported"
+        )
 
     if component_type == "U32":
         # Blender에는 unsigned 32-bit attribute type이 없다.

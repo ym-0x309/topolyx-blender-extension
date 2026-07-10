@@ -22,6 +22,14 @@ from .mattr_types import (
 from .mattr_utils import matrix_to_column_major_list
 
 
+_COMPONENT_SIZES = {
+    "F32": 4,
+    "I32": 4,
+    "U32": 4,
+    "BOOL": 1,
+}
+
+
 def write_mattr(
     filepath: str,
     objects: Sequence[bpy.types.Object],
@@ -195,16 +203,19 @@ def _append_attributes(
             offset = buffer.append_i32(attr.values)
         elif attr.component_type == "U32":
             offset = buffer.append_u32(attr.values)
+        elif attr.component_type == "BOOL":
+            offset = buffer.append_bool(attr.values)
         else:
             raise ValueError(f"Unsupported attribute component type: {attr.component_type}")
 
+        component_size = _COMPONENT_SIZES[attr.component_type]
         attributes.append(
             Attribute(
                 name=attr.name,
                 domain=attr.domain,
                 data=DataDescriptor(
                     byte_offset=offset,
-                    byte_length=len(attr.values) * 4,
+                    byte_length=len(attr.values) * component_size,
                     component_type=attr.component_type,
                     component_count=attr.component_count,
                     element_count=len(attr.values) // attr.component_count,

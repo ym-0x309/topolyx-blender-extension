@@ -29,16 +29,9 @@ class MATTR_OT_import_mesh(Operator, ImportHelper):
         default=True,
     )
 
-    apply_transform: BoolProperty(
-        name="Apply Transform",
-        description="Bake the object transform into the mesh vertices and reset the object transform",
-        default=False,
-    )
-
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "import_attributes")
-        layout.prop(self, "apply_transform")
 
     def execute(self, context):
         filepath = _ensure_mattr_json_ext(self.filepath)
@@ -54,7 +47,6 @@ class MATTR_OT_import_mesh(Operator, ImportHelper):
             warnings = mattr_importer.import_mattr(
                 filepath,
                 import_attributes=self.import_attributes,
-                apply_transform=self.apply_transform,
                 progress_callback=_update_progress,
             )
         except mattr_importer.MattrImportError as exc:

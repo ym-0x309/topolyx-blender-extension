@@ -12,6 +12,7 @@ from .mattr_coordinate import CoordinateConverter
 from .mattr_types import (
     Attribute,
     Buffer,
+    CoordinateSystem,
     DataDescriptor,
     Header,
     MattrFile,

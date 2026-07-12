@@ -2,7 +2,7 @@
 
 from typing import Dict, Optional
 
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 from .mattr_types import CoordinateSystem
 
@@ -44,15 +44,20 @@ class CoordinateConverter:
     여기서 S는 ``meters_per_unit``로 이루어진 uniform scale 행렬이다.
     """
 
-    def __init__(self, preset: str) -> None:
-        if preset not in _PRESETS:
+    def __init__(self, preset_or_cs: str | CoordinateSystem) -> None:
+        if isinstance(preset_or_cs, CoordinateSystem):
+            self.preset = "CUSTOM"
+            self._init_from_coordinate_system(preset_or_cs)
+            return
+
+        if preset_or_cs not in _PRESETS:
             raise ValueError(
-                f"Unknown coordinate system preset: {preset}. "
+                f"Unknown coordinate system preset: {preset_or_cs}. "
                 f"Available: {list(_PRESETS.keys())}"
             )
 
-        self.preset = preset
-        self._init_from_coordinate_system(_PRESETS[preset])
+        self.preset = preset_or_cs
+        self._init_from_coordinate_system(_PRESETS[preset_or_cs])
 
     @classmethod
     def from_coordinate_system(cls, cs: CoordinateSystem) -> "CoordinateConverter":
@@ -148,6 +153,28 @@ class CoordinateConverter:
         S_inv = self._scale_matrix(invert=True)
         S = self._scale_matrix()
         return S_inv @ self._matrix_4x4 @ m @ self._matrix_4x4_inv @ S
+
+    def convert_rotation(self, q: Quaternion) -> Quaternion:
+        """Blender 쿼터니언 회전을 target 좌표계 쿼터니언으로 변환한다."""
+        q_basis = self._matrix_3x3.to_quaternion()
+        return q_basis @ q @ q_basis.conjugated()
+
+    def inverse_convert_rotation(self, q: Quaternion) -> Quaternion:
+        """target 쿼터니언 회전을 Blender 좌표계 쿼터니언으로 변환한다."""
+        q_basis = self._matrix_3x3.to_quaternion()
+        return q_basis.conjugated() @ q @ q_basis
+
+    def convert_tangent(self, t: Vector) -> Vector:
+        """Tangent 벡터 (x, y, z, w)를 target 좌표계로 변환한다."""
+        xyz = self.convert_direction(Vector((t.x, t.y, t.z)))
+        w = -t.w if self._matrix_3x3.determinant() < 0 else t.w
+        return Vector((xyz.x, xyz.y, xyz.z, w))
+
+    def inverse_convert_tangent(self, t: Vector) -> Vector:
+        """target Tangent 벡터 (x, y, z, w)를 Blender 좌표계로 변환한다."""
+        xyz = self.inverse_convert_direction(Vector((t.x, t.y, t.z)))
+        w = -t.w if self._matrix_3x3_inv.determinant() < 0 else t.w
+        return Vector((xyz.x, xyz.y, xyz.z, w))
 
     def inverse_convert_position(self, v: Vector) -> Vector:
         """target local/world position을 Blender local/world position으로 변환한다."""

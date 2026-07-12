@@ -149,7 +149,9 @@ def _build_mesh(
     )
 
     if import_attributes:
-        attr_warnings = apply_attributes(mesh, mesh_data.attributes, bin_data)
+        attr_warnings = apply_attributes(
+            mesh, mesh_data.attributes, bin_data, converter=converter
+        )
         warnings.extend(attr_warnings)
 
     return mesh

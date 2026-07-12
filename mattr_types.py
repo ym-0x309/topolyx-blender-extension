@@ -1,4 +1,4 @@
-"""MATTR 포맷 v0.2.0에 사용하는 데이터 모델."""
+"""MATTR 포맷 v0.3.0에 사용하는 데이터 모델."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -110,11 +110,13 @@ class Attribute:
     name: str
     domain: str  # "POINT" | "EDGE" | "FACE" | "CORNER"
     data: DataDescriptor
+    semantic: str = "NONE"  # "POSITION" | "DIRECTION" | "ROTATION" | "TANGENT" | "COLOR" | "NONE"
 
     def to_dict(self) -> Dict[str, Any]:
         return {
             "name": self.name,
             "domain": self.domain,
+            "semantic": self.semantic,
             "data": self.data.to_dict(),
         }
 
@@ -124,6 +126,7 @@ class Attribute:
             name=data["name"],
             domain=data["domain"],
             data=DataDescriptor.from_dict(data["data"]),
+            semantic=data.get("semantic", "NONE"),
         )
 
 
@@ -188,7 +191,7 @@ class Header:
     """MATTR 파일 헤더."""
 
     format: str = "MATTR"
-    version: str = "0.2"
+    version: str = "0.3"
 
     def to_dict(self) -> Dict[str, str]:
         return {"format": self.format, "version": self.version}

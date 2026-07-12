@@ -26,6 +26,7 @@ from blender_mattr_exporter.tests import common
 _TYPE_COMPONENT_COUNT = {
     "FLOAT": 1,
     "INT": 1,
+    "INT8": 1,
     "FLOAT2": 2,
     "FLOAT_VECTOR": 3,
     "FLOAT_COLOR": 4,
@@ -42,8 +43,11 @@ def _read_blender_attribute_values(blender_attr):
     element_count = len(blender_attr.data)
     total_count = element_count * component_count
 
-    if data_type in ("FLOAT", "INT"):
-        buf = array.array("f" if data_type == "FLOAT" else "i", [0]) * total_count
+    if data_type in ("FLOAT", "INT", "INT8"):
+        if data_type == "FLOAT":
+            buf = array.array("f", [0.0]) * total_count
+        else:
+            buf = array.array("i", [0]) * total_count
         prop = "value"
     elif data_type in ("FLOAT2", "FLOAT_VECTOR"):
         buf = array.array("f", [0.0]) * total_count
@@ -437,6 +441,84 @@ def test_u32_unsupported_component_count():
     print("test_u32_unsupported_component_count passed")
 
 
+def test_byte_color_roundtrip():
+    """BYTE_COLOR attribute가 U8x4로 round-trip 복원되는지 확인한다."""
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    mesh = bpy.context.active_object.data
+
+    values = []
+    for _ in range(len(mesh.loops)):
+        values.extend([1.0, 0.0, 0.25, 1.0])
+    attr = mesh.attributes.new(name="ByteColor", type="BYTE_COLOR", domain="CORNER")
+    attr.data.foreach_set("color", values)
+    mesh.update()
+
+    tmpdir = common.tempdir()
+    try:
+        json_path, bin_path = common.export_active_object(tmpdir, "byte_color_rt")
+        imported_mesh = common.import_topology_only(json_path, bin_path)
+        mattr_file, bin_data = read_mattr(json_path)
+        warnings = apply_attributes(
+            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+        )
+        assert not warnings, f"Unexpected warnings: {warnings}"
+
+        imported_attr = imported_mesh.attributes.get("ByteColor")
+        assert imported_attr is not None
+        assert imported_attr.data_type == "BYTE_COLOR"
+        assert imported_attr.domain == "CORNER"
+
+        actual = _read_blender_attribute_values(imported_attr)
+        for a, e in zip(actual, values):
+            assert abs(a - e) < 0.02  # U8 양자화 허용
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("test_byte_color_roundtrip passed")
+
+
+def test_i8_attribute_import():
+    """I8x1 attribute가 import 시 INT로 부호 확장되어 저장되는지 확인한다."""
+    from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
+    from blender_mattr_exporter.mattr_types import Attribute, DataDescriptor
+
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    imported_mesh = bpy.context.active_object.data
+
+    buffer = BinaryBuffer()
+    i8_values = [-128, -64, -1, 0, 1, 64, 127, 0]
+    offset = buffer.append_i8(i8_values)
+    bin_data = buffer.to_bytes()
+
+    attr = Attribute(
+        name="SignedByte",
+        domain="POINT",
+        data=DataDescriptor(
+            byte_offset=offset,
+            byte_length=len(i8_values),
+            component_type="I8",
+            component_count=1,
+            element_count=len(i8_values),
+        ),
+    )
+
+    warnings = apply_attributes(imported_mesh, [attr], bin_data)
+    assert not warnings, f"Unexpected warnings: {warnings}"
+
+    imported_attr = imported_mesh.attributes.get("SignedByte")
+    assert imported_attr is not None
+    assert imported_attr.data_type == "INT8"
+    assert imported_attr.domain == "POINT"
+
+    actual = _read_blender_attribute_values(imported_attr)
+    assert actual == i8_values
+
+    print("test_i8_attribute_import passed")
+
+
 def main():
     common.reset_addon()
     test_point_float_attribute()
@@ -450,6 +532,8 @@ def main():
     test_reserved_attribute_name_renamed()
     test_u32_bit_cast_to_i32()
     test_u32_unsupported_component_count()
+    test_byte_color_roundtrip()
+    test_i8_attribute_import()
     print("All Phase 8 tests passed")
 
 

@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
-from mathutils import Matrix, Vector
+from mathutils import Matrix, Quaternion, Vector
 
 from blender_mattr_exporter.mattr_attribute import mattr_component_type_to_blender
 from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
@@ -90,10 +90,8 @@ def test_mattr_component_type_to_blender():
     assert mattr_component_type_to_blender("F32", 2) == ("FLOAT2", "vector")
     assert mattr_component_type_to_blender("F32", 3) == ("FLOAT_VECTOR", "vector")
     assert mattr_component_type_to_blender("F32", 4) == ("FLOAT_COLOR", "color")
-    assert mattr_component_type_to_blender("F32", 4, use_byte_color=True) == (
-        "BYTE_COLOR",
-        "color",
-    )
+    assert mattr_component_type_to_blender("U8", 4) == ("BYTE_COLOR", "color")
+    assert mattr_component_type_to_blender("I8", 1) == ("INT8", "value")
     assert mattr_component_type_to_blender("I32", 1) == ("INT", "value")
     assert mattr_component_type_to_blender("I32", 2) == ("INT32_2D", "value")
     assert mattr_component_type_to_blender("U32", 1) == ("INT", "value")
@@ -119,7 +117,7 @@ def test_read_mattr():
         mattr_file, bin_data = read_mattr(json_path)
 
         assert mattr_file.header.format == "MATTR"
-        assert mattr_file.header.version == "0.2"
+        assert mattr_file.header.version == "0.3"
         assert mattr_file.buffer.byte_length == len(bin_data)
         assert len(mattr_file.objects) == 1
         assert len(mattr_file.meshes) == 1
@@ -265,6 +263,64 @@ def test_invalid_coordinate_system_rejected():
     print("test_invalid_coordinate_system_rejected passed")
 
 
+def test_custom_coordinate_system_export():
+    """CUSTOM preset과 up_axis/forward_axis/meters_per_unit가 파일에 반영되는지 확인한다."""
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+
+    tmpdir = common.tempdir()
+    try:
+        json_path, bin_path = common.export_active_object(
+            tmpdir,
+            "custom_cs",
+            coordinate_system_preset="CUSTOM",
+            up_axis="+Y",
+            forward_axis="+Z",
+            handedness="RIGHT",
+            winding="CW",
+            meters_per_unit=2.0,
+        )
+        data, _ = common.load_result(json_path, bin_path)
+
+        cs = data["coordinate_system"]
+        assert cs["up_axis"] == "+Y"
+        assert cs["forward_axis"] == "+Z"
+        assert cs["handedness"] == "RIGHT"
+        assert cs["winding"] == "CW"
+        assert abs(cs["meters_per_unit"] - 2.0) < 1e-6
+    finally:
+        import shutil
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("test_custom_coordinate_system_export passed")
+
+
+def test_rotation_tangent_conversion_round_trip():
+    """ROTATION/TANGENT semantic attribute의 좌표계 변환이 round-trip으로 복원된다."""
+    converter = CoordinateConverter.from_coordinate_system(
+        CoordinateSystem(
+            up_axis="+Y",
+            forward_axis="+Z",
+            handedness="RIGHT",
+            winding="CCW",
+            meters_per_unit=1.0,
+        )
+    )
+
+    q = Quaternion((0.5, 0.5, 0.5, 0.5))
+    converted = converter.convert_rotation(q)
+    recovered = converter.inverse_convert_rotation(converted)
+    dot = abs(q.dot(recovered))
+    assert abs(dot - 1.0) < 1e-6
+
+    t = Vector((1.0, 0.0, 0.0, 1.0))
+    converted_t = converter.convert_tangent(t)
+    recovered_t = converter.inverse_convert_tangent(converted_t)
+    assert (t - recovered_t).length < 1e-6
+
+    print("test_rotation_tangent_conversion_round_trip passed")
+
+
 def main():
     common.reset_addon()
     test_inverse_coordinate_conversion()
@@ -276,6 +332,8 @@ def main():
     test_winding_property()
     test_meters_per_unit_scaling()
     test_invalid_coordinate_system_rejected()
+    test_custom_coordinate_system_export()
+    test_rotation_tangent_conversion_round_trip()
     test_read_mattr()
     print("All Phase 6 tests passed")
 

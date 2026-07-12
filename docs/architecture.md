@@ -62,10 +62,16 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_selection` | `BoolProperty` | `True`면 선택된 오브젝트만, `False`면 씬의 모든 메시 오브젝트 익스포트 |
-| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"` 또는 `"MATTR_DEFAULT"` 좌표계 선택 |
+| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"`, `"MATTR_DEFAULT"`, `"CUSTOM"` 좌표계 preset 선택 |
+| `up_axis` | `EnumProperty` | CUSTOM preset에서 up axis (`+X`~`-Z`) |
+| `forward_axis` | `EnumProperty` | CUSTOM preset에서 forward axis (`+X`~`-Z`) |
+| `handedness` | `EnumProperty` | `"RIGHT"` 또는 `"LEFT"` (LEFT는 미지원) |
+| `winding` | `EnumProperty` | `"CCW"` 또는 `"CW"` |
+| `meters_per_unit` | `FloatProperty` | 좌표계에서 1단위가 의미하는 미터 값 |
 | `export_attributes` | `BoolProperty` | attribute 익스포트 여부 |
-| `exclude_hidden_attributes` | `BoolProperty` | 내부 Outputplus/internal attribute 제외 여부 |
+| `exclude_hidden_attributes` | `BoolProperty` | 낶부 Outputplus/internal attribute 제외 여부 |
 | `excluded_attribute_names` | `StringProperty` | 추가 제외할 attribute 이름 목록 |
+| `remove_semantic_prefix` | `BoolProperty` | semantic prefix를 attribute 이름에서 제거 |
 
 #### 메서드
 
@@ -97,17 +103,19 @@ def execute(self, context: bpy.types.Context) -> set[str]
 def write_mattr(
     filepath: str,
     objects: Sequence[bpy.types.Object],
-    coordinate_system_preset: str = "MATTR_DEFAULT",
+    coordinate_system: CoordinateSystem,
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
+    remove_semantic_prefix: bool = False,
 ) -> List[str]
 ```
 
 - **입력**:
   - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
   - `objects`: 내보낼 MESH 타입 Blender 오브젝트 목록
-  - `coordinate_system_preset`: `"BLENDER"` 또는 `"MATTR_DEFAULT"`
+  - `coordinate_system`: `CoordinateSystem` 객체 형태의 목표 좌표계
+  - `remove_semantic_prefix`: semantic prefix를 attribute 이름에서 제거할지 여부
   - `export_attributes`: attribute 내보내기 여부
   - `exclude_hidden_attributes`: 내부 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
@@ -122,11 +130,13 @@ def _append_mesh(
     buffer: BinaryBuffer,
     mesh_name: str,
     topology_data: TopologyData,
-    attribute_arrays: Sequence[AttributeArrays]
+    attribute_arrays: Sequence[AttributeArrays],
+    converter: CoordinateConverter,
 ) -> Mesh
 ```
 
 - 하나의 메시에 대해 topology 5종 배열과 일반 attribute 배열을 `BinaryBuffer`에 추가한다.
+- attribute 값은 semantic에 따라 `converter`를 통해 좌표계 변환된다.
 - 추가된 배열의 descriptor를 포함하는 `Mesh` 객체를 반환한다.
 
 ## `mattr_reader.py`
@@ -233,7 +243,7 @@ def execute(self, context: bpy.types.Context) -> set[str]
 class DataDescriptor
 ```
 - `byte_offset`, `byte_length`, `component_type`, `component_count`, `element_count`를 포함한다.
-- `component_type`은 `"F32"`, `"I32"`, `"U32"`, `"BOOL"` 중 하나이다.
+- `component_type`은 `"F32"`, `"I32"`, `"U32"`, `"I8"`, `"U8"`, `"BOOL"` 중 하나이다.
 
 ```python
 @dataclass
@@ -253,14 +263,15 @@ class MattrFile
 class Attribute
 ```
 
-- 일반 attribute의 JSON 표현. `name`, `domain`, `data: DataDescriptor`를 포함한다.
+- 일반 attribute의 JSON 표현. `name`, `domain`, `semantic`, `data: DataDescriptor`를 포함한다.
+- `semantic`은 `"POSITION"`, `"DIRECTION"`, `"ROTATION"`, `"TANGENT"`, `"COLOR"`, `"NONE"` 중 하나이며 기본값은 `"NONE"`이다.
 
 ```python
 @dataclass
 class Header
 ```
 
-- `format`은 `"MATTR"`, `version`은 `"0.2"`이다.
+- `format`은 `"MATTR"`, `version`은 `"0.3"`이다.
 
 ## `mattr_mesh.py`
 
@@ -310,7 +321,7 @@ def build_blender_mesh(
 class AttributeArrays
 ```
 
-- Binary 직렬화 직전의 attribute 데이터. `name`, `domain`, `component_type`, `component_count`, `values`를 포함한다.
+- Binary 직렬화 직전의 attribute 데이터. `name`, `domain`, `component_type`, `component_count`, `values`, `semantic`를 포함한다.
 
 ```python
 def extract_attributes(
@@ -319,23 +330,27 @@ def extract_attributes(
     export_attributes: bool = True,
     exclude_hidden: bool = True,
     excluded_names: Optional[Set[str]] = None,
+    remove_semantic_prefix: bool = False,
 ) -> Tuple[List[AttributeArrays], List[str]]
 ```
 
 - `mesh.attributes`를 순회하여 지원하는 attribute만 추출한다.
 - 반환값은 `(attributes, warnings)` 튜플이다.
-- 지원하는 Blender data type은 `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`이다.
-- `BYTE_COLOR`는 `F32×4`로 정규화한다.
+- 지원하는 Blender data type은 `FLOAT`, `INT`, `INT8`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`이다.
+- `BYTE_COLOR`는 `U8×4`로 저장하고 `semantic=COLOR`를 부여한다.
+- `INT8`은 `I8×1`로 저장한다.
 - `BOOLEAN`은 `BOOL×1`로 저장한다.
+- attribute 이름이나 data_type에 따라 `semantic`이 자동 할당되며, `DIRECTION_`, `POSITION_` 등의 prefix도 인식한다.
 
 ```python
 def mattr_component_type_to_blender(
-    component_type: str, component_count: int, use_byte_color: bool = False
+    component_type: str, component_count: int
 ) -> Tuple[str, str]
 ```
 
 - MATTR의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
-- `F32×4`는 기본적으로 `FLOAT_COLOR`로 환산되며, `use_byte_color=True`이면 `BYTE_COLOR`로 환산한다.
+- `F32×4`는 `FLOAT_COLOR`로, `U8×4`는 `BYTE_COLOR`로 환산한다.
+- `I8×1`은 `INT8`로 환산한다.
 - `U32×1`과 `U32×2`는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로 유지한 채 `INT`/`INT32_2D`로 환산한다.
 - `BOOL×1`은 `BOOLEAN`으로 환산한다.
 - `INT32_2D`의 `foreach_get`/`foreach_set` property는 `"value"`이다.
@@ -353,6 +368,7 @@ def apply_attributes(
     attributes: Sequence[Attribute],
     bin_data: bytes,
     warnings: Optional[List[str]] = None,
+    converter: Optional[CoordinateConverter] = None,
 ) -> List[str]
 ```
 
@@ -360,6 +376,8 @@ def apply_attributes(
 - `BinaryBufferReader`로 binary를 읽고, `mattr_component_type_to_blender()`로 Blender attribute type을 결정한다.
 - `position`, `material_index` 등 Blender internal/reserved 이름과 충돌하는 이름은 `import_` prefix를 붙여 rename한다.
 - U32 attribute는 비트 패턴을 그대로 I32로 해석하여 저장한다.
+- U8×4 attribute는 `BYTE_COLOR`로, I8×1 attribute는 `INT8`로 복원한다.
+- `converter`가 주어지면 coordinate-transform semantic (`POSITION`, `DIRECTION`, `ROTATION`, `TANGENT`) attribute 값을 Blender 좌표계로 역변환한다.
 - 반환값은 경고 메시지 목록이다.
 
 ## `mattr_coordinate.py`
@@ -420,6 +438,26 @@ def inverse_convert_matrix(self, m: Matrix) -> Matrix
 - target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다.
 - ``M_blender = S @ M^-1 @ M_target @ M @ S^-1``를 적용한다.
 
+```python
+def convert_rotation(self, q: Quaternion) -> Quaternion
+```
+- Blender 쿼터니언 회전을 target 좌표계 쿼터니언으로 변환한다.
+
+```python
+def inverse_convert_rotation(self, q: Quaternion) -> Quaternion
+```
+- target 쿼터니언 회전을 Blender 좌표계 쿼터니언으로 변환한다.
+
+```python
+def convert_tangent(self, t: Vector) -> Vector
+```
+- Tangent 벡터 `(x, y, z, w)`를 target 좌표계로 변환한다.
+
+```python
+def inverse_convert_tangent(self, t: Vector) -> Vector
+```
+- target Tangent 벡터 `(x, y, z, w)`를 Blender 좌표계로 변환한다.
+
 ## `mattr_utils.py`
 
 - **역할**: 익스포터와 향후 임포터가 공유하는 작은 유틸리티 함수를 제공한다.
@@ -439,7 +477,7 @@ def column_major_list_to_matrix(values: Sequence[float]) -> Matrix
 
 ## `mattr_binary.py`
 
-- **역할**: little-endian F32/I32/U32 배열을 4바이트 정렬로 조립하는 binary 버퍼와, 기록된 버퍼를 읽는 reader를 제공한다.
+- **역할**: little-endian F32/I32/U32/I8/U8/BOOL 배열을 4바이트 정렬로 조립하는 binary 버퍼와, 기록된 버퍼를 읽는 reader를 제공한다.
 
 ### Public API
 ```python
@@ -469,6 +507,18 @@ def append_bool(self, values: Iterable[int]) -> int
 ```
 
 - BOOL 배열을 1바이트씩 추가하고 시작 `byte_offset`을 반환한다.
+
+```python
+def append_i8(self, values: Sequence[int]) -> int
+```
+
+- I8 배열을 1바이트씩 추가하고 시작 `byte_offset`을 반환한다.
+
+```python
+def append_u8(self, values: Sequence[int]) -> int
+```
+
+- U8 배열을 1바이트씩 추가하고 시작 `byte_offset`을 반환한다.
 
 ```python
 def byte_length(self) -> int
@@ -510,6 +560,18 @@ def read_bool(self, offset: int, count: int) -> array.array
 
 - 지정한 offset부터 count개의 BOOL 값을 읽어 `array.array('b')`로 반환한다.
 
+```python
+def read_i8(self, offset: int, count: int) -> array.array
+```
+
+- 지정한 offset부터 count개의 I8 값을 읽어 `array.array('b')`로 반환한다.
+
+```python
+def read_u8(self, offset: int, count: int) -> array.array
+```
+
+- 지정한 offset부터 count개의 U8 값을 읽어 `array.array('B')`로 반환한다.
+
 ## `mattr_validator.py`
 
 - **역할**: MATTR 출력 파일이 명세의 유효성 조건을 만족하는지 검증한다.
@@ -527,8 +589,8 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
 
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
-- `header.version`의 major/minor 버전이 지원 버전(`0.2.0` → `0.2`)과 일치하는지 검사한다.
-- `attributes`에 대해 이름 중복, domain, component_type, component_count, element_count, byte offset/length를 검사한다.
+- `header.version`의 major/minor 버전이 지원 버전(`0.3.0` → `0.3`)과 일치하는지 검사한다.
+- `attributes`에 대해 이름 중복, domain, semantic, component_type, component_count, element_count, byte offset/length를 검사한다.
 - descriptor의 `byte_offset`과 `byte_length`가 음수가 아닌지 검사한다.
 - `coordinate_system.meters_per_unit`이 양의 유한수인지 검사한다.
 - object/mesh/attribute 이름이 비어 있거나 잘못 중복되지 않는지 검사한다.

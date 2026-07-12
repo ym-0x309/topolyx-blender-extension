@@ -1,11 +1,23 @@
 import bpy
 from bpy.types import Operator
-from bpy.props import BoolProperty, EnumProperty, StringProperty
+from bpy.props import BoolProperty, EnumProperty, FloatProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper
 
 from pathlib import Path
 
 from . import mattr_validator, mattr_writer
+from .mattr_coordinate import CoordinateConverter
+from .mattr_types import CoordinateSystem
+
+
+_AXIS_ITEMS = [
+    ("+X", "+X", "Positive X axis"),
+    ("-X", "-X", "Negative X axis"),
+    ("+Y", "+Y", "Positive Y axis"),
+    ("-Y", "-Y", "Negative Y axis"),
+    ("+Z", "+Z", "Positive Z axis"),
+    ("-Z", "-Z", "Negative Z axis"),
+]
 
 
 class MATTR_OT_export_mesh(Operator, ExportHelper):
@@ -28,13 +40,56 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
     )
 
     coordinate_system_preset: EnumProperty(
-        name="Coordinate System",
-        description="Target coordinate system for the exported file",
+        name="Coordinate System Preset",
+        description="Select a preset or choose CUSTOM to configure axes manually",
         items=[
-            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward (Blender-compatible, spec example)"),
-            ("BLENDER", "Blender", "+Z up, +Y forward (Blender native, identical to MATTR Default)"),
+            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward, right-handed, CCW"),
+            ("BLENDER", "Blender", "+Z up, +Y forward, right-handed, CCW (Blender native)"),
+            ("CUSTOM", "Custom", "Manually specify up/forward axes and other options"),
         ],
         default="MATTR_DEFAULT",
+    )
+
+    up_axis: EnumProperty(
+        name="Up Axis",
+        description="Target coordinate system up axis",
+        items=_AXIS_ITEMS,
+        default="+Z",
+    )
+
+    forward_axis: EnumProperty(
+        name="Forward Axis",
+        description="Target coordinate system forward axis",
+        items=_AXIS_ITEMS,
+        default="+Y",
+    )
+
+    handedness: EnumProperty(
+        name="Handedness",
+        description="Target coordinate system handedness (left-handed is not supported)",
+        items=[
+            ("RIGHT", "Right-handed", "Right-handed coordinate system"),
+            ("LEFT", "Left-handed", "Left-handed coordinate system (not supported)"),
+        ],
+        default="RIGHT",
+    )
+
+    winding: EnumProperty(
+        name="Winding",
+        description="Target coordinate system polygon winding order",
+        items=[
+            ("CCW", "Counter-Clockwise", "Counter-clockwise polygon winding"),
+            ("CW", "Clockwise", "Clockwise polygon winding"),
+        ],
+        default="CCW",
+    )
+
+    meters_per_unit: FloatProperty(
+        name="Meters per Unit",
+        description="Scale factor: how many meters one unit represents in the target coordinate system",
+        default=1.0,
+        min=0.0001,
+        soft_max=1000.0,
     )
 
     export_attributes: BoolProperty(
@@ -53,6 +108,12 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         name="Excluded Attributes",
         description="Comma-separated list of attribute names to skip during export",
         default="",
+    )
+
+    remove_semantic_prefix: BoolProperty(
+        name="Remove Semantic Prefix",
+        description="Strip semantic prefixes (e.g. DIRECTION_) from attribute names in the exported file",
+        default=False,
     )
 
     def check(self, _context):
@@ -82,11 +143,26 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
     def draw(self, context):
         layout = self.layout
         layout.prop(self, "use_selection")
-        layout.prop(self, "coordinate_system_preset")
+
+        box = layout.box()
+        box.label(text="Coordinate System")
+        box.prop(self, "coordinate_system_preset")
+        custom = self.coordinate_system_preset == "CUSTOM"
+        sub = box.column()
+        sub.enabled = custom
+        sub.prop(self, "up_axis")
+        sub.prop(self, "forward_axis")
+        sub.prop(self, "handedness")
+        sub.prop(self, "winding")
+        sub.prop(self, "meters_per_unit")
+
         layout.prop(self, "export_attributes")
         if self.export_attributes:
-            layout.prop(self, "exclude_hidden_attributes")
-            layout.prop(self, "excluded_attribute_names")
+            box = layout.box()
+            box.label(text="Attribute Options")
+            box.prop(self, "exclude_hidden_attributes")
+            box.prop(self, "excluded_attribute_names")
+            box.prop(self, "remove_semantic_prefix")
 
     def execute(self, context):
         if self.use_selection:
@@ -105,6 +181,20 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             self.report({"ERROR"}, "No mesh objects to export")
             return {"CANCELLED"}
 
+        coordinate_system = self._build_coordinate_system()
+        if coordinate_system.handedness == "LEFT":
+            self.report(
+                {"ERROR"},
+                "Left-handed coordinate systems are not supported by this extension",
+            )
+            return {"CANCELLED"}
+
+        try:
+            CoordinateConverter(coordinate_system)
+        except ValueError as exc:
+            self.report({"ERROR"}, f"Invalid coordinate system: {exc}")
+            return {"CANCELLED"}
+
         self.filepath = _ensure_mattr_json_ext(self.filepath)
         json_path = Path(self.filepath)
         bin_path = json_path.with_name(json_path.stem + ".bin")
@@ -119,10 +209,11 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             writer_warnings = mattr_writer.write_mattr(
                 self.filepath,
                 mesh_objects,
-                self.coordinate_system_preset,
+                coordinate_system,
                 export_attributes=self.export_attributes,
                 exclude_hidden_attributes=self.exclude_hidden_attributes,
                 excluded_attribute_names=self.excluded_attribute_names,
+                remove_semantic_prefix=self.remove_semantic_prefix,
                 progress_callback=_update_progress,
             )
             warnings.extend(writer_warnings)
@@ -160,6 +251,32 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
                 {"WARNING"},
                 f"MATTR export: {len(warnings)} warnings (see console)",
             )
+
+    def _build_coordinate_system(self) -> CoordinateSystem:
+        """Operator 설정으로부터 CoordinateSystem 객체를 생성한다."""
+        if self.coordinate_system_preset == "BLENDER":
+            return CoordinateSystem(
+                up_axis="+Z",
+                forward_axis="+Y",
+                handedness="RIGHT",
+                winding="CCW",
+                meters_per_unit=1.0,
+            )
+        if self.coordinate_system_preset == "MATTR_DEFAULT":
+            return CoordinateSystem(
+                up_axis="+Z",
+                forward_axis="+Y",
+                handedness="RIGHT",
+                winding="CCW",
+                meters_per_unit=1.0,
+            )
+        return CoordinateSystem(
+            up_axis=self.up_axis,
+            forward_axis=self.forward_axis,
+            handedness=self.handedness,
+            winding=self.winding,
+            meters_per_unit=self.meters_per_unit,
+        )
 
 
 def _ensure_mattr_json_ext(filepath: str) -> str:

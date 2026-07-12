@@ -15,20 +15,22 @@ class AttributeArrays:
 
     name: str
     domain: str  # "POINT" | "EDGE" | "FACE" | "CORNER"
-    component_type: str  # "F32" | "I32" | "U32"
+    component_type: str  # "F32" | "I32" | "U32" | "I8" | "U8" | "BOOL"
     component_count: int
     values: List[float] | List[int]
+    semantic: str = "NONE"
 
 
 # Blender data_type → (MATTR component_type, component_count, foreach_get property)
 _BLENDER_TO_MATTR_TYPE_MAP = {
     "FLOAT": ("F32", 1, "value"),
     "INT": ("I32", 1, "value"),
+    "INT8": ("I8", 1, "value"),
     "BOOLEAN": ("BOOL", 1, "value"),
     "FLOAT2": ("F32", 2, "vector"),
     "FLOAT_VECTOR": ("F32", 3, "vector"),
     "FLOAT_COLOR": ("F32", 4, "color"),
-    "BYTE_COLOR": ("F32", 4, "color"),
+    "BYTE_COLOR": ("U8", 4, "color"),
     "INT32_2D": ("I32", 2, "value"),
 }
 
@@ -39,6 +41,8 @@ _MATTR_TO_BLENDER_TYPE_MAP = {
     ("F32", 3): ("FLOAT_VECTOR", "vector"),
     ("I32", 1): ("INT", "value"),
     ("I32", 2): ("INT32_2D", "value"),
+    ("I8", 1): ("INT8", "value"),
+    ("U8", 4): ("BYTE_COLOR", "color"),
     ("U32", 1): ("INT", "value"),
     ("U32", 2): ("INT32_2D", "value"),
 }
@@ -59,6 +63,37 @@ _DOMAIN_COUNT_KEY = {
     "CORNER": "corners",
 }
 
+# semantic prefix 기반 매핑에 사용할 접두사 목록
+_SEMANTIC_PREFIXES = ("POSITION", "DIRECTION", "ROTATION", "TANGENT", "COLOR")
+
+# Blender 기본 attribute 이름 → MATTR semantic 자동 매핑
+_DEFAULT_SEMANTIC_MAP = {
+    "normal": "DIRECTION",
+    "tangent": "TANGENT",
+    "Col": "COLOR",
+    "color": "COLOR",
+}
+
+
+def _assign_semantic(name: str, data_type: str) -> str:
+    """Blender attribute 이름과 data_type에 따라 MATTR semantic을 결정한다."""
+    if name in _DEFAULT_SEMANTIC_MAP:
+        return _DEFAULT_SEMANTIC_MAP[name]
+    for prefix in _SEMANTIC_PREFIXES:
+        if name.startswith(prefix + "_"):
+            return prefix
+    if data_type in ("FLOAT_COLOR", "BYTE_COLOR"):
+        return "COLOR"
+    return "NONE"
+
+
+def _strip_semantic_prefix(name: str) -> str:
+    """semantic prefix가 있으면 제거한 이름을 반환한다."""
+    for prefix in _SEMANTIC_PREFIXES:
+        if name.startswith(prefix + "_"):
+            return name[len(prefix) + 1 :]
+    return name
+
 
 def extract_attributes(
     mesh: bpy.types.Mesh,
@@ -66,8 +101,9 @@ def extract_attributes(
     export_attributes: bool = True,
     exclude_hidden: bool = True,
     excluded_names: Optional[Set[str]] = None,
+    remove_semantic_prefix: bool = False,
 ) -> Tuple[List[AttributeArrays], List[str]]:
-    """Blender mesh에서 MATTR로 내보낼 attribute 배열을 추출한다.
+    """Blender mesh에서 MATTR로 낳볼 attribute 배열을 추출한다.
 
     Returns:
         (attributes, warnings): 추출된 attribute 목록과 사용자에게 보여줄 경고 메시지 목록
@@ -119,13 +155,17 @@ def extract_attributes(
             continue
 
         values = _read_attribute_values(attribute, data_type, component_count, prop_name)
+        semantic = _assign_semantic(name, data_type)
+        attr_name = _strip_semantic_prefix(name) if remove_semantic_prefix else name
+
         attributes.append(
             AttributeArrays(
-                name=name,
+                name=attr_name,
                 domain=domain,
                 component_type=component_type,
                 component_count=component_count,
                 values=values,
+                semantic=semantic,
             )
         )
 
@@ -144,9 +184,10 @@ def _read_attribute_values(
 
     if data_type == "BYTE_COLOR":
         # Blender의 BYTE_COLOR는 API에서 0~1 정규화된 float로 노출된다.
+        # MATTR U8×4로 저장하기 위해 0~255 범위로 양자화한다.
         buf = array.array("f", [0.0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
-        return list(buf)
+        return [max(0, min(255, int(v * 255.0 + 0.5))) for v in buf]
 
     component_type = _BLENDER_TO_MATTR_TYPE_MAP[data_type][0]
     if component_type == "F32":
@@ -155,6 +196,10 @@ def _read_attribute_values(
         return list(buf)
     elif component_type == "I32":
         buf = array.array("i", [0]) * total_count
+        attribute.data.foreach_get(prop_name, buf)
+        return list(buf)
+    elif component_type == "I8":
+        buf = array.array("b", [0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
         return list(buf)
     elif component_type == "BOOL":
@@ -182,9 +227,10 @@ def mattr_component_type_to_blender(
         ValueError: 지원하지 않는 (component_type, component_count) 조합일 경우.
     """
     if component_type == "F32" and component_count == 4:
-        if use_byte_color:
-            return "BYTE_COLOR", "color"
         return "FLOAT_COLOR", "color"
+
+    if component_type == "U8" and component_count == 4:
+        return "BYTE_COLOR", "color"
 
     if component_type == "BOOL":
         if component_count == 1:

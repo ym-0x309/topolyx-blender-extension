@@ -6,7 +6,7 @@
 
 It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.mattr.json` + `.mattr.bin` file pair.
 
-This extension implements MATTR format version `v0.2.0`.
+This extension implements MATTR format version `v0.3.0`.
 
 ## File Structure
 
@@ -85,18 +85,21 @@ blender_mattr_exporter/
 ## Key Design Decisions
 
 - **Original mesh usage**: Exports the original `obj.data` data block, not the evaluated mesh.
-- **Coordinate system**: Exports to the MATTR v0.1.0 example coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW). The `BLENDER` preset produces output identical to Blender's native coordinate system.
+- **Coordinate system**: Exports to the MATTR v0.3.0 coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW) by default. The `BLENDER` preset produces output identical to Blender's native coordinate system. A `CUSTOM` preset allows configuring up/forward axes, winding, and `meters_per_unit` via the Operator UI.
 - **Object Transform conversion**: `object.transform` is the matrix that converts mesh local space coordinates to file world space coordinates, transformed according to the selected coordinate system.
-- **Left-handed coordinate system not supported**: Only right-handed coordinate systems are supported.
+- **Left-handed coordinate system not supported**: Only right-handed coordinate systems are supported; selecting `LEFT` in the UI results in a cancelled export, and importing a file with `handedness: LEFT` raises a validation error.
 - **Bidirectional conversion support**: `mattr_coordinate.py` provides inverse coordinate conversion to prepare for future importer implementation.
 - **Attribute handling**:
   - Exports `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes.
-  - Supported Blender data types are `FLOAT`, `INT`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`.
-  - `BYTE_COLOR` is stored as normalized `F32×4` in the 0~1 range.
+  - Supported Blender data types are `FLOAT`, `INT`, `INT8`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`.
+  - `BYTE_COLOR` is stored as `U8×4` with `semantic=COLOR`.
   - `BOOLEAN` is stored as `BOOL×1` (1 byte per element, `0`/`1`).
-  - Types not supported in v0.2.0 such as `STRING`, `INT8`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
+  - `INT8` is stored as `I8×1`.
+  - Types not supported in v0.3.0 such as `STRING`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
   - Hidden/internal attributes starting with `.` and the topology-reserved name `position` are excluded by default. `sharp_edge/face` and `freestyle_edge/face` are exported as regular boolean attributes.
   - Users can specify additional names to skip in the `Excluded Attributes` comma-separated list.
+  - Each attribute now carries a `semantic` field (`POSITION`, `DIRECTION`, `ROTATION`, `TANGENT`, `COLOR`, `NONE`). Semantic assignment uses built-in name heuristics (`normal`→`DIRECTION`, `tangent`→`TANGENT`, `Col`/`color`→`COLOR`) plus name prefixes such as `DIRECTION_my_attribute`. The optional `Remove Semantic Prefix` setting strips the prefix from the exported name.
+  - Attributes with coordinate-transform semantics (`POSITION`, `DIRECTION`, `ROTATION`, `TANGENT`) are converted to/from the target coordinate system during export/import.
 - **Multi-object export**:
   - Selected mesh objects can be exported at once.
   - Turning off `Selection Only` exports all mesh objects in the scene.
@@ -109,7 +112,10 @@ blender_mattr_exporter/
 - **Attribute import handling**:
   - Restores `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes onto a Blender Mesh.
   - `U32` attributes are stored as signed `INT`/`INT32_2D` while preserving the underlying bit pattern, because Blender has no unsigned 32-bit attribute type.
+  - `U8×4` attributes are restored as `BYTE_COLOR`.
+  - `I8×1` attributes are sign-extended and stored as `INT`.
   - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_` and a warning is emitted.
+  - Coordinate-transform semantics are inverted so that imported attributes align with Blender's coordinate system.
 - **Importer core**:
   - `mattr_importer.py` reads a MATTR file pair and creates Blender mesh objects in the active layer collection.
   - File-level mesh sharing is preserved across imported objects.

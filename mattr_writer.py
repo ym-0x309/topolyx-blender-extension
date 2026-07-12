@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Callable, List, Optional, Sequence
 
 import bpy
+from mathutils import Quaternion, Vector
 
 from . import mattr_attribute, mattr_binary, mattr_coordinate, mattr_mesh
 from .mattr_coordinate import CoordinateConverter
@@ -26,6 +27,8 @@ _COMPONENT_SIZES = {
     "F32": 4,
     "I32": 4,
     "U32": 4,
+    "I8": 1,
+    "U8": 1,
     "BOOL": 1,
 }
 
@@ -33,10 +36,11 @@ _COMPONENT_SIZES = {
 def write_mattr(
     filepath: str,
     objects: Sequence[bpy.types.Object],
-    coordinate_system_preset: str = "MATTR_DEFAULT",
+    coordinate_system: CoordinateSystem,
     export_attributes: bool = True,
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
+    remove_semantic_prefix: bool = False,
     progress_callback: Optional[Callable[[int], None]] = None,
 ) -> List[str]:
     """Export one or more mesh objects as a MATTR file pair.
@@ -44,10 +48,11 @@ def write_mattr(
     Args:
         filepath: Destination .mattr.json path.
         objects: Sequence of Blender MESH objects to export.
-        coordinate_system_preset: "BLENDER" or "MATTR_DEFAULT".
+        coordinate_system: Target CoordinateSystem descriptor.
         export_attributes: Whether to export mesh attributes.
         exclude_hidden_attributes: Skip internal/hidden attributes.
         excluded_attribute_names: Comma-separated attribute names to skip.
+        remove_semantic_prefix: Strip semantic prefix (e.g. DIRECTION_) from attribute names.
         progress_callback: Optional callback receiving processed object count.
 
     Returns:
@@ -57,7 +62,7 @@ def write_mattr(
     bin_path = path.parent / (path.stem + ".bin")
     bin_uri = bin_path.name
 
-    converter = CoordinateConverter(coordinate_system_preset)
+    converter = CoordinateConverter(coordinate_system)
     target_cs = converter.target
 
     excluded_names = _parse_excluded_attribute_names(excluded_attribute_names)
@@ -78,10 +83,13 @@ def write_mattr(
                 export_attributes=export_attributes,
                 exclude_hidden=exclude_hidden_attributes,
                 excluded_names=excluded_names,
+                remove_semantic_prefix=remove_semantic_prefix,
             )
             all_warnings.extend(warnings)
 
-            mattr_mesh_obj = _append_mesh(buffer, mesh.name, topology_data, attribute_arrays)
+            mattr_mesh_obj = _append_mesh(
+                buffer, mesh.name, topology_data, attribute_arrays, converter
+            )
             index = len(meshes)
             mesh_to_index[mesh] = index
             meshes.append(mattr_mesh_obj)
@@ -133,6 +141,7 @@ def _append_mesh(
     mesh_name: str,
     topology_data: TopologyData,
     attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
+    converter: CoordinateConverter,
 ) -> Mesh:
     """Append topology and attributes for a single mesh to the binary buffer."""
     counts = topology_data.element_counts
@@ -143,7 +152,7 @@ def _append_mesh(
     corner_edges_offset = buffer.append_u32(topology_data.corner_edges)
     face_offsets_offset = buffer.append_u32(topology_data.face_offsets)
 
-    attributes = _append_attributes(buffer, attribute_arrays)
+    attributes = _append_attributes(buffer, attribute_arrays, converter)
 
     topology = Topology(
         positions=DataDescriptor(
@@ -192,19 +201,29 @@ def _append_mesh(
 
 
 def _append_attributes(
-    buffer: mattr_binary.BinaryBuffer, attribute_arrays: Sequence[mattr_attribute.AttributeArrays]
+    buffer: mattr_binary.BinaryBuffer,
+    attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
+    converter: CoordinateConverter,
 ) -> list[Attribute]:
     """Append attribute arrays to the binary buffer and build descriptors."""
     attributes: list[Attribute] = []
     for attr in attribute_arrays:
+        values = _convert_attribute_values(
+            attr.values, attr.semantic, attr.component_type, attr.component_count, converter
+        )
+
         if attr.component_type == "F32":
-            offset = buffer.append_f32(attr.values)
+            offset = buffer.append_f32(values)
         elif attr.component_type == "I32":
-            offset = buffer.append_i32(attr.values)
+            offset = buffer.append_i32(values)
         elif attr.component_type == "U32":
-            offset = buffer.append_u32(attr.values)
+            offset = buffer.append_u32(values)
+        elif attr.component_type == "I8":
+            offset = buffer.append_i8(values)
+        elif attr.component_type == "U8":
+            offset = buffer.append_u8(values)
         elif attr.component_type == "BOOL":
-            offset = buffer.append_bool(attr.values)
+            offset = buffer.append_bool(values)
         else:
             raise ValueError(f"Unsupported attribute component type: {attr.component_type}")
 
@@ -213,13 +232,70 @@ def _append_attributes(
             Attribute(
                 name=attr.name,
                 domain=attr.domain,
+                semantic=attr.semantic,
                 data=DataDescriptor(
                     byte_offset=offset,
-                    byte_length=len(attr.values) * component_size,
+                    byte_length=len(values) * component_size,
                     component_type=attr.component_type,
                     component_count=attr.component_count,
-                    element_count=len(attr.values) // attr.component_count,
+                    element_count=len(values) // attr.component_count,
                 ),
             )
         )
     return attributes
+
+
+def _convert_attribute_values(
+    values: List[float] | List[int],
+    semantic: str,
+    component_type: str,
+    component_count: int,
+    converter: CoordinateConverter,
+) -> List[float] | List[int]:
+    """좌표계 변환이 필요한 semantic attribute 값을 변환한다."""
+    if component_type != "F32":
+        return values
+
+    if semantic == "POSITION":
+        return _convert_vectors(values, converter.convert_position)
+    elif semantic == "DIRECTION":
+        return _convert_vectors(values, converter.convert_direction)
+    elif semantic == "ROTATION":
+        return _convert_quaternions(values, converter.convert_rotation)
+    elif semantic == "TANGENT":
+        return _convert_tangents(values, converter.convert_tangent)
+    return values
+
+
+def _convert_vectors(
+    values: Sequence[float], convert_fn: Callable[[Vector], Vector]
+) -> List[float]:
+    """F32×3 벡터 배열에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 3):
+        v = convert_fn(Vector((values[i], values[i + 1], values[i + 2])))
+        result.extend((v.x, v.y, v.z))
+    return result
+
+
+def _convert_quaternions(
+    values: Sequence[float], convert_fn: Callable[[Quaternion], Quaternion]
+) -> List[float]:
+    """F32×4 쿼터니언 배열 (x, y, z, w)에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 4):
+        q = Quaternion((values[i + 3], values[i], values[i + 1], values[i + 2]))
+        q = convert_fn(q)
+        result.extend((q.x, q.y, q.z, q.w))
+    return result
+
+
+def _convert_tangents(
+    values: Sequence[float], convert_fn: Callable[[Vector], Vector]
+) -> List[float]:
+    """F32×4 tangent 배열 (x, y, z, w)에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 4):
+        t = convert_fn(Vector((values[i], values[i + 1], values[i + 2], values[i + 3])))
+        result.extend((t.x, t.y, t.z, t.w))
+    return result

@@ -204,19 +204,20 @@ def test_vertex_color_byte():
 
         attr = common.find_attribute(data, "ByteColor")
         assert attr["domain"] == "CORNER"
+        assert attr["semantic"] == "COLOR"
         desc = attr["data"]
-        assert desc["component_type"] == "F32"
+        assert desc["component_type"] == "U8"
         assert desc["component_count"] == 4
         assert desc["element_count"] == 24
 
         count = desc["element_count"] * desc["component_count"]
-        actual = struct.unpack_from(f"<{count}f", bin_data, desc["byte_offset"])
+        actual = struct.unpack_from(f"<{count}B", bin_data, desc["byte_offset"])
         for i in range(0, len(actual), 4):
             r, g, b, a = actual[i], actual[i + 1], actual[i + 2], actual[i + 3]
-            assert abs(r - 1.0) < 1e-6
-            assert abs(g - 0.0) < 1e-6
-            assert abs(b - 0.25) < 0.01  # sRGB byte roundtrip 허용
-            assert abs(a - 1.0) < 1e-6
+            assert r == 255
+            assert g == 0
+            assert abs(b - 64) <= 1  # 0.25 * 255 = 63.75
+            assert a == 255
     finally:
         import shutil
 
@@ -361,6 +362,66 @@ def test_uv_map_values():
     print("test_uv_map_values passed")
 
 
+def test_semantic_prefix():
+    """semantic prefix 기반 매핑과 이름 제거 옵션을 확인한다."""
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    mesh = bpy.context.active_object.data
+
+    values = [float(i) for i in range(len(mesh.vertices) * 3)]
+    attr = mesh.attributes.new(name="DIRECTION_MyAttr", type="FLOAT_VECTOR", domain="POINT")
+    attr.data.foreach_set("vector", values)
+    mesh.update()
+
+    tmpdir = common.tempdir()
+    try:
+        json_path, bin_path = common.export_active_object(tmpdir, "with_prefix")
+        data, _ = common.load_result(json_path, bin_path)
+        attr = common.find_attribute(data, "DIRECTION_MyAttr")
+        assert attr["semantic"] == "DIRECTION"
+
+        json_path2, _ = common.export_active_object(
+            tmpdir, "no_prefix", remove_semantic_prefix=True
+        )
+        data2, _ = common.load_result(json_path2, bin_path)
+        attr2 = common.find_attribute(data2, "MyAttr")
+        assert attr2["semantic"] == "DIRECTION"
+    finally:
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("test_semantic_prefix passed")
+
+
+def test_default_attribute_semantic():
+    """Blender 기본 attribute 이름에 대한 자동 semantic 매핑을 확인한다."""
+    common.clear_scene()
+    bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+    mesh = bpy.context.active_object.data
+
+    color_values = []
+    for _ in range(len(mesh.loops)):
+        color_values.extend([1.0, 0.0, 0.0, 1.0])
+    attr = mesh.attributes.new(name="Col", type="BYTE_COLOR", domain="CORNER")
+    attr.data.foreach_set("color", color_values)
+    mesh.update()
+
+    tmpdir = common.tempdir()
+    try:
+        json_path, bin_path = common.export_active_object(tmpdir, "col_attr")
+        data, _ = common.load_result(json_path, bin_path)
+        attr = common.find_attribute(data, "Col")
+        assert attr["semantic"] == "COLOR"
+        assert attr["data"]["component_type"] == "U8"
+    finally:
+        import shutil
+
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+    print("test_default_attribute_semantic passed")
+
+
 def main():
     common.reset_addon()
     test_default_cube_with_uvmap()
@@ -374,6 +435,8 @@ def main():
     test_boolean_attribute_supported()
     test_empty_mesh_attributes()
     test_uv_map_values()
+    test_semantic_prefix()
+    test_default_attribute_semantic()
     print("All Phase 3 tests passed")
 
 

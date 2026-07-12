@@ -12,13 +12,15 @@ _COMPONENT_SIZES = {
     "F32": 4,
     "I32": 4,
     "U32": 4,
+    "I8": 1,
+    "U8": 1,
     "BOOL": 1,
 }
 
 _VERSION_PATTERN = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
 # 이 익스포터/리더가 지원하는 MATTR 포맷 버전(문서 기준 x.y.z).
-_SUPPORTED_VERSION = "0.2.0"
+_SUPPORTED_VERSION = "0.3.0"
 _SUPPORTED_MAJOR_VERSION = _SUPPORTED_VERSION.split(".")[0]
 _SUPPORTED_MINOR_VERSION = _SUPPORTED_VERSION.split(".")[1]
 
@@ -265,6 +267,16 @@ _DOMAIN_COUNT_KEY = {
     "CORNER": "corners",
 }
 
+_VALID_SEMANTICS = {"POSITION", "DIRECTION", "ROTATION", "TANGENT", "COLOR", "NONE"}
+
+_SEMANTIC_CONSTRAINTS = {
+    "POSITION": ("F32", 3),
+    "DIRECTION": ("F32", 3),
+    "ROTATION": ("F32", 4),
+    "TANGENT": ("F32", 4),
+    "COLOR": {("F32", 4), ("U8", 4)},
+}
+
 
 def _validate_descriptor(
     desc: Dict[str, Any],
@@ -434,7 +446,7 @@ def _validate_edges(
 
 
 def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> None:
-    """일반 attribute의 descriptor와 domain/element_count 일관성을 검증한다."""
+    """일반 attribute의 descriptor와 domain/element_count, semantic 일관성을 검증한다."""
     counts = mesh["element_counts"]
     attributes = mesh.get("attributes", [])
 
@@ -454,6 +466,28 @@ def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> 
             expected_count=None,
             expected_elements=expected_elements,
         )
+
+        semantic = attr.get("semantic", "NONE")
+        if semantic not in _VALID_SEMANTICS:
+            _fail(f"{attr_prefix}('{name}'): invalid semantic '{semantic}'")
+
+        constraints = _SEMANTIC_CONSTRAINTS.get(semantic)
+        if constraints is not None:
+            component_type = attr["data"]["component_type"]
+            component_count = attr["data"]["component_count"]
+            if semantic == "COLOR":
+                if (component_type, component_count) not in constraints:
+                    _fail(
+                        f"{attr_prefix}('{name}'): COLOR semantic requires "
+                        f"F32x4 or U8x4, got {component_type}x{component_count}"
+                    )
+            else:
+                expected_type, expected_count = constraints
+                if component_type != expected_type or component_count != expected_count:
+                    _fail(
+                        f"{attr_prefix}('{name}'): {semantic} semantic requires "
+                        f"{expected_type}x{expected_count}, got {component_type}x{component_count}"
+                    )
 
 
 def _validate_object(obj: Dict[str, Any], mesh_count: int, obj_index: int) -> None:

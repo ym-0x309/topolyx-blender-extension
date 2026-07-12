@@ -42,6 +42,22 @@ class BinaryBuffer:
         self._data.extend(buf.tobytes())
         return offset
 
+    def append_i8(self, values: Sequence[int]) -> int:
+        """I8 배열을 1바이트씩 추가하고 시작 byte offset을 반환한다."""
+        self._align(4)
+        offset = len(self._data)
+        buf = values if isinstance(values, array.array) else array.array("b", values)
+        self._data.extend(buf.tobytes())
+        return offset
+
+    def append_u8(self, values: Sequence[int]) -> int:
+        """U8 배열을 1바이트씩 추가하고 시작 byte offset을 반환한다."""
+        self._align(4)
+        offset = len(self._data)
+        buf = values if isinstance(values, array.array) else array.array("B", values)
+        self._data.extend(buf.tobytes())
+        return offset
+
     def append_bool(self, values: Iterable[int]) -> int:
         """BOOL 배열을 1바이트씩 추가하고 시작 byte offset을 반환한다.
 
@@ -102,6 +118,20 @@ class BinaryBufferReader:
             return array.array("I")
         self._check_bounds(offset, count * 4)
         return array.array("I", self._data[offset : offset + count * 4])
+
+    def read_i8(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 I8 값을 읽어 array.array('b')로 반환한다."""
+        if count == 0:
+            return array.array("b")
+        self._check_bounds(offset, count)
+        return array.array("b", self._data[offset : offset + count])
+
+    def read_u8(self, offset: int, count: int) -> array.array:
+        """offset 위치부터 count개의 U8 값을 읽어 array.array('B')로 반환한다."""
+        if count == 0:
+            return array.array("B")
+        self._check_bounds(offset, count)
+        return array.array("B", self._data[offset : offset + count])
 
     def read_bool(self, offset: int, count: int) -> array.array:
         """offset 위치부터 count개의 BOOL 값을 읽어 array.array('b')로 반환한다."""

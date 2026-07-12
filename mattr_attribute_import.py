@@ -1,15 +1,17 @@
 """Restore MATTR attributes onto a Blender Mesh data block."""
 
 import array
-from typing import List, Optional, Sequence
+from typing import Callable, List, Optional, Sequence
 
 import bpy
+from mathutils import Quaternion, Vector
 
 from .mattr_attribute import (
     _SUPPORTED_DOMAINS,
     mattr_component_type_to_blender,
 )
 from .mattr_binary import BinaryBufferReader
+from .mattr_coordinate import CoordinateConverter
 from .mattr_types import Attribute, DataDescriptor
 
 
@@ -39,6 +41,7 @@ def apply_attributes(
     attributes: Sequence[Attribute],
     bin_data: bytes,
     warnings: Optional[List[str]] = None,
+    converter: Optional[CoordinateConverter] = None,
 ) -> List[str]:
     """Apply MATTR attributes to an existing Blender Mesh.
 
@@ -59,7 +62,7 @@ def apply_attributes(
     used_names: set[str] = set()
 
     for attr in attributes:
-        warning = _apply_single_attribute(mesh, attr, reader, used_names)
+        warning = _apply_single_attribute(mesh, attr, reader, used_names, converter)
         if warning:
             warnings.append(warning)
 
@@ -72,6 +75,7 @@ def _apply_single_attribute(
     attr: Attribute,
     reader: BinaryBufferReader,
     used_names: set[str],
+    converter: Optional[CoordinateConverter] = None,
 ) -> Optional[str]:
     """Restore one MATTR attribute. Returns a warning message or None."""
     name = attr.name
@@ -90,6 +94,9 @@ def _apply_single_attribute(
 
     try:
         values = _read_attribute_values(reader, attr.data)
+        values = _inverse_convert_attribute_values(
+            values, attr.semantic, attr.data.component_type, converter
+        )
     except ValueError as exc:
         return f"Skipping attribute '{name}': {exc}"
 
@@ -127,12 +134,76 @@ def _read_attribute_values(reader: BinaryBufferReader, desc: DataDescriptor):
         return reader.read_f32(desc.byte_offset, count)
     elif desc.component_type == "I32":
         return reader.read_i32(desc.byte_offset, count)
+    elif desc.component_type == "I8":
+        return _read_i8_as_i32(reader, desc.byte_offset, count)
+    elif desc.component_type == "U8":
+        if desc.component_count == 4:
+            return _read_u8_as_float_color(reader, desc.byte_offset, count)
+        raise ValueError(
+            f"Unsupported U8 component_count: {desc.component_count} "
+            "(only U8x4 is supported for BYTE_COLOR)"
+        )
     elif desc.component_type == "U32":
         return _read_u32_as_i32(reader, desc.byte_offset, count)
     elif desc.component_type == "BOOL":
         return reader.read_bool(desc.byte_offset, count)
     else:
         raise ValueError(f"Unsupported component type: {desc.component_type}")
+
+
+def _inverse_convert_attribute_values(
+    values: Sequence[float] | Sequence[int],
+    semantic: str,
+    component_type: str,
+    converter: Optional[CoordinateConverter],
+) -> Sequence[float] | Sequence[int]:
+    """좌표계 변환이 필요한 semantic attribute 값을 Blender 좌표계로 역변환한다."""
+    if converter is None or component_type != "F32":
+        return values
+
+    if semantic == "POSITION":
+        return _convert_vectors(values, converter.inverse_convert_position)
+    elif semantic == "DIRECTION":
+        return _convert_vectors(values, converter.inverse_convert_direction)
+    elif semantic == "ROTATION":
+        return _convert_quaternions(values, converter.inverse_convert_rotation)
+    elif semantic == "TANGENT":
+        return _convert_tangents(values, converter.inverse_convert_tangent)
+    return values
+
+
+def _convert_vectors(
+    values: Sequence[float], convert_fn: Callable[[Vector], Vector]
+) -> List[float]:
+    """F32×3 벡터 배열에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 3):
+        v = convert_fn(Vector((values[i], values[i + 1], values[i + 2])))
+        result.extend((v.x, v.y, v.z))
+    return result
+
+
+def _convert_quaternions(
+    values: Sequence[float], convert_fn: Callable[[Quaternion], Quaternion]
+) -> List[float]:
+    """F32×4 쿼터니언 배열 (x, y, z, w)에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 4):
+        q = Quaternion((values[i + 3], values[i], values[i + 1], values[i + 2]))
+        q = convert_fn(q)
+        result.extend((q.x, q.y, q.z, q.w))
+    return result
+
+
+def _convert_tangents(
+    values: Sequence[float], convert_fn: Callable[[Vector], Vector]
+) -> List[float]:
+    """F32×4 tangent 배열 (x, y, z, w)에 변환 함수를 적용한다."""
+    result: List[float] = []
+    for i in range(0, len(values), 4):
+        t = convert_fn(Vector((values[i], values[i + 1], values[i + 2], values[i + 3])))
+        result.extend((t.x, t.y, t.z, t.w))
+    return result
 
 
 def _read_u32_as_i32(reader: BinaryBufferReader, offset: int, count: int):
@@ -145,6 +216,18 @@ def _read_u32_as_i32(reader: BinaryBufferReader, offset: int, count: int):
     i32_values = array.array("i")
     i32_values.frombytes(u32_values.tobytes())
     return i32_values
+
+
+def _read_i8_as_i32(reader: BinaryBufferReader, offset: int, count: int):
+    """Read I8 values and sign-extend to I32 for Blender INT storage."""
+    i8_values = reader.read_i8(offset, count)
+    return array.array("i", i8_values)
+
+
+def _read_u8_as_float_color(reader: BinaryBufferReader, offset: int, count: int):
+    """Read U8 values and normalize to 0~1 float for Blender BYTE_COLOR."""
+    u8_values = reader.read_u8(offset, count)
+    return array.array("f", (v / 255.0 for v in u8_values))
 
 
 def _resolve_attribute_name(name: str, used_names: set[str]) -> tuple[str, Optional[str]]:

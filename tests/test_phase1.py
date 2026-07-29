@@ -44,7 +44,6 @@ def test_default_cube():
         assert topo["face_offsets"]["byte_offset"] == 384
         assert topo["face_offsets"]["byte_length"] == 28
 
-        assert data["buffer"]["byte_length"] == 412
     finally:
         import shutil
 
@@ -65,7 +64,7 @@ def test_transformed_cube():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "transformed_cube",
-            coordinate_system_preset="BLENDER",
+            meters_per_unit=1.0,
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -117,7 +116,6 @@ def test_empty_mesh():
         counts = mesh["element_counts"]
         assert counts == {"vertices": 0, "edges": 0, "faces": 0, "corners": 0}
         assert mesh["topology"]["face_offsets"]["element_count"] == 1
-        assert data["buffer"]["byte_length"] == 4
     finally:
         import shutil
 
@@ -126,16 +124,16 @@ def test_empty_mesh():
     print("test_empty_mesh passed")
 
 
-def test_ensure_topolyx_json_ext():
+def test_ensure_tlyx_ext():
     """execute에서 사용하는 확장자 보정 로직을 검증한다."""
-    from topolyx_blender_extension.topolyx_export_operator import _ensure_topolyx_json_ext
+    from topolyx_blender_extension.topolyx_export_operator import _ensure_tlyx_ext
 
-    assert _ensure_topolyx_json_ext("model") == "model.tlyx.json"
-    assert _ensure_topolyx_json_ext("model.json") == "model.tlyx.json"
-    assert _ensure_topolyx_json_ext("model.tlyx") == "model.tlyx.json"
-    assert _ensure_topolyx_json_ext("model.tlyx.json") == "model.tlyx.json"
-    assert _ensure_topolyx_json_ext("/tmp/model") == "/tmp/model.tlyx.json"
-    print("test_ensure_topolyx_json_ext passed")
+    assert _ensure_tlyx_ext("model") == "model.tlyx"
+    assert _ensure_tlyx_ext("model.json") == "model.tlyx"
+    assert _ensure_tlyx_ext("model.tlyx.json") == "model.tlyx"
+    assert _ensure_tlyx_ext("model.tlyx") == "model.tlyx"
+    assert _ensure_tlyx_ext("/tmp/model") == "/tmp/model.tlyx"
+    print("test_ensure_tlyx_ext passed")
 
 
 def main():
@@ -143,7 +141,7 @@ def main():
     test_default_cube()
     test_transformed_cube()
     test_empty_mesh()
-    test_ensure_topolyx_json_ext()
+    test_ensure_tlyx_ext()
     print("All Phase 1 tests passed")
 
 

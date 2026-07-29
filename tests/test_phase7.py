@@ -74,7 +74,7 @@ def test_import_missing_file():
     common.clear_scene()
     tmpdir = common.tempdir()
     try:
-        missing_path = tmpdir / "missing.tlyx.json"
+        missing_path = tmpdir / "missing.tlyx"
         try:
             common.import_topolyx_file(missing_path)
             raise AssertionError("Import operator should have failed for missing file")

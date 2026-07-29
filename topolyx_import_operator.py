@@ -15,10 +15,10 @@ class TOPOLYX_OT_import_mesh(Operator, ImportHelper):
     bl_label = "Import Topolyx"
     bl_options = {"PRESET", "UNDO"}
 
-    filename_ext = ".tlyx.json"
+    filename_ext = ".tlyx"
 
     filter_glob: StringProperty(
-        default="*.tlyx.json",
+        default="*.tlyx",
         options={"HIDDEN"},
         maxlen=255,
     )
@@ -34,7 +34,7 @@ class TOPOLYX_OT_import_mesh(Operator, ImportHelper):
         layout.prop(self, "import_attributes")
 
     def execute(self, context):
-        filepath = _ensure_topolyx_json_ext(self.filepath)
+        filepath = _ensure_tlyx_ext(self.filepath)
 
         wm = context.window_manager
         wm.progress_begin(0, 100)
@@ -79,9 +79,9 @@ class TOPOLYX_OT_import_mesh(Operator, ImportHelper):
             )
 
 
-def _ensure_topolyx_json_ext(filepath: str) -> str:
-    """Ensure the filepath ends with .tlyx.json."""
-    ext = ".tlyx.json"
+def _ensure_tlyx_ext(filepath: str) -> str:
+    """Ensure the filepath ends with .tlyx."""
+    ext = ".tlyx"
     if filepath.endswith(ext):
         return filepath
     return bpy.path.ensure_ext(filepath, ext)

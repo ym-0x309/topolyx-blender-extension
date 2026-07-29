@@ -54,7 +54,6 @@ def test_default_cube_with_uvmap():
         assert sharp_desc["byte_offset"] == 604
         assert sharp_desc["byte_length"] == 6
 
-        assert data["buffer"]["byte_length"] == 610
     finally:
         import shutil
 
@@ -77,7 +76,6 @@ def test_export_attributes_disabled():
 
         mesh = data["meshes"][0]
         assert mesh["attributes"] == []
-        assert data["buffer"]["byte_length"] == 412
     finally:
         import shutil
 

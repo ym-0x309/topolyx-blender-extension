@@ -13,14 +13,14 @@ classes = [
 def menu_func_export(self, _context):
     self.layout.operator(
         topolyx_export_operator.TOPOLYX_OT_export_mesh.bl_idname,
-        text="Topolyx (.tlyx.json)",
+        text="Topolyx (.tlyx)",
     )
 
 
 def menu_func_import(self, _context):
     self.layout.operator(
         topolyx_import_operator.TOPOLYX_OT_import_mesh.bl_idname,
-        text="Topolyx (.tlyx.json)",
+        text="Topolyx (.tlyx)",
     )
 
 

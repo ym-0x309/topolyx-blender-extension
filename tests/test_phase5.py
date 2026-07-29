@@ -14,6 +14,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 
 from topolyx_blender_extension import topolyx_validator
+from topolyx_blender_extension.topolyx_binary import (
+    read_tlyx_container,
+    write_tlyx_container,
+)
 from topolyx_blender_extension.tests import common
 
 
@@ -256,7 +260,7 @@ def test_large_coordinates():
     tmpdir = common.tempdir()
     try:
         json_path, bin_path = common.export_active_object(
-            tmpdir, "large_coords", coordinate_system_preset="BLENDER"
+            tmpdir, "large_coords", meters_per_unit=1.0
         )
         data, bin_data = common.load_result(json_path, bin_path)
 
@@ -286,7 +290,6 @@ def test_empty_mesh_with_attributes_enabled():
         data, bin_data = common.load_result(json_path, bin_path)
 
         assert data["meshes"][0]["attributes"] == []
-        assert data["buffer"]["byte_length"] == 4
     finally:
         import shutil
 
@@ -301,7 +304,7 @@ def test_no_mesh_objects_cancelled():
 
     tmpdir = common.tempdir()
     try:
-        json_path = tmpdir / "empty_scene.tlyx.json"
+        json_path = tmpdir / "empty_scene.tlyx"
         # Blender에서 Operator가 ERROR를 report하면 bpy.ops.* 호출 시 RuntimeError가 발생한다.
         try:
             bpy.ops.export_mesh.tlyx(filepath=str(json_path))
@@ -327,16 +330,20 @@ def test_validator_catches_corrupted_json():
         # 검증 통과 확인
         common.load_result(json_path, bin_path)
 
-        # JSON을 손상시킨다: vertices 수를 틀리게 변경
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        # .tlyx 컨테이너에서 JSON을 분리해 손상시킨 후 다시 조립한다.
+        container_data = json_path.read_bytes()
+        json_bytes, bin_data = read_tlyx_container(container_data)
+        data = json.loads(json_bytes.decode("utf-8"))
         data["meshes"][0]["element_counts"]["vertices"] = 999
-        corrupted_path = tmpdir / "corrupted.tlyx.json"
-        with open(corrupted_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
+        corrupted_json_bytes = json.dumps(
+            data, indent=4, ensure_ascii=False
+        ).encode("utf-8")
+        corrupted_container = write_tlyx_container(corrupted_json_bytes, bin_data)
+        corrupted_path = tmpdir / "corrupted.tlyx"
+        corrupted_path.write_bytes(corrupted_container)
 
         try:
-            topolyx_validator.validate_topolyx_file(corrupted_path, bin_path)
+            topolyx_validator.validate_topolyx_file(corrupted_path)
             raise AssertionError("Validator should have rejected corrupted JSON")
         except topolyx_validator.TopolyxValidationError:
             pass  # 예상된 동작

@@ -29,8 +29,7 @@ def import_topolyx(
     """Import a Topolyx file pair into the current Blender scene.
 
     Args:
-        filepath: Path to the .tlyx.json file. A .tlyx.bin with the same
-            basename must exist in the same directory.
+        filepath: Path to the .tlyx file.
         import_attributes: Whether to restore mesh attributes.
         progress_callback: Optional callback receiving (current_step, total_steps).
 

@@ -165,6 +165,8 @@ def _inverse_convert_attribute_values(
         return _convert_vectors(values, converter.inverse_convert_position)
     elif semantic == "DIRECTION":
         return _convert_vectors(values, converter.inverse_convert_direction)
+    elif semantic == "NORMAL":
+        return _convert_vectors(values, converter.inverse_convert_normal)
     elif semantic == "ROTATION":
         return _convert_quaternions(values, converter.inverse_convert_rotation)
     elif semantic == "TANGENT":

@@ -1,11 +1,13 @@
-"""Topolyx 출력 파일의 유효성을 검증한다."""
+"""Topolyx .tlyx 출력 파일의 유효성을 검증한다."""
 
 import json
 import math
 import re
 import struct
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Tuple
+
+from .topolyx_binary import read_tlyx_container, TopolyxContainerError
 
 
 _COMPONENT_SIZES = {
@@ -17,10 +19,10 @@ _COMPONENT_SIZES = {
     "BOOL": 1,
 }
 
-_VERSION_PATTERN = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
+_VERSION_PATTERN = re.compile(r"^\d+\.\d+$")
 
 # 이 익스포터/리더가 지원하는 Topolyx 포맷 버전(문서 기준 x.y.z).
-_SUPPORTED_VERSION = "0.3.0"
+_SUPPORTED_VERSION = "1.0.0"
 _SUPPORTED_MAJOR_VERSION = _SUPPORTED_VERSION.split(".")[0]
 _SUPPORTED_MINOR_VERSION = _SUPPORTED_VERSION.split(".")[1]
 
@@ -34,25 +36,22 @@ class TopolyxValidationError(Exception):
     pass
 
 
-def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> None:
-    """JSON 파일 경로를 기준으로 Topolyx 파일 쌍을 검증한다.
+def validate_topolyx_file(filepath: Path) -> None:
+    """.tlyx 파일을 읽어 JSON 메타데이터와 binary 데이터의 유효성을 검증한다."""
+    filepath = Path(filepath)
+    if not filepath.exists():
+        raise TopolyxValidationError(f"Topolyx file not found: {filepath}")
 
-    bin_path가 주어지지 않으면 json_path와 동일한 basename의 .tlyx.bin 파일을 사용한다.
-    """
-    json_path = Path(json_path)
-    if bin_path is None:
-        bin_path = json_path.with_name(json_path.stem + ".bin")
-    else:
-        bin_path = Path(bin_path)
+    container_data = filepath.read_bytes()
+    try:
+        json_bytes, bin_data = read_tlyx_container(container_data)
+    except TopolyxContainerError as exc:
+        raise TopolyxValidationError(f"Invalid Topolyx container: {exc}") from exc
 
-    if not json_path.exists():
-        raise TopolyxValidationError(f"JSON file not found: {json_path}")
-    if not bin_path.exists():
-        raise TopolyxValidationError(f"Binary file not found: {bin_path}")
-
-    with open(json_path, "r", encoding="utf-8") as f:
-        json_data = json.load(f)
-    bin_data = bin_path.read_bytes()
+    try:
+        json_data = json.loads(json_bytes.decode("utf-8"))
+    except json.JSONDecodeError as exc:
+        raise TopolyxValidationError(f"Invalid JSON chunk: {exc}") from exc
 
     validate_topolyx(json_data, bin_data)
 
@@ -60,7 +59,6 @@ def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> N
 def validate_topolyx(json_data: Dict[str, Any], bin_data: bytes) -> None:
     """JSON 메타데이터와 binary 데이터가 명세 조건을 만족하는지 검증한다."""
     _validate_header(json_data)
-    _validate_buffer(json_data, bin_data)
     _validate_coordinate_system(json_data)
     _validate_names(json_data)
 
@@ -90,37 +88,21 @@ def _validate_header(json_data: Dict[str, Any]) -> None:
     if version is None:
         _fail("Missing header.version")
     if not isinstance(version, str) or not _VERSION_PATTERN.match(version):
-        _fail(f"header.version must be in x.y.z format, got: {version!r}")
+        _fail(f"header.version must be in x.y format, got: {version!r}")
 
     parts = version.split(".")
     major = parts[0]
-    minor = parts[1] if len(parts) > 1 else "0"
+    minor = parts[1]
     if major != _SUPPORTED_MAJOR_VERSION:
         _fail(
             f"Unsupported major version: {version!r} "
-            f"(supported major version: {_SUPPORTED_MAJOR_VERSION}.x.x)"
+            f"(supported major version: {_SUPPORTED_MAJOR_VERSION}.x)"
         )
     if minor != _SUPPORTED_MINOR_VERSION:
         _fail(
             f"Unsupported minor version: {version!r} "
-            f"(supported version: {_SUPPORTED_MAJOR_VERSION}.{_SUPPORTED_MINOR_VERSION}.x)"
+            f"(supported version: {_SUPPORTED_MAJOR_VERSION}.{_SUPPORTED_MINOR_VERSION})"
         )
-
-
-def _validate_buffer(json_data: Dict[str, Any], bin_data: bytes) -> None:
-    buffer = json_data.get("buffer")
-    if buffer is None:
-        _fail("Missing 'buffer' field")
-
-    byte_length = buffer.get("byte_length")
-    if byte_length != len(bin_data):
-        _fail(
-            f"buffer.byte_length mismatch: {byte_length} vs actual binary length {len(bin_data)}"
-        )
-
-    uri = buffer.get("uri")
-    if uri is None or not isinstance(uri, str) or not uri:
-        _fail("buffer.uri must be a non-empty string")
 
 
 def _validate_coordinate_system(json_data: Dict[str, Any]) -> None:
@@ -128,23 +110,21 @@ def _validate_coordinate_system(json_data: Dict[str, Any]) -> None:
     if cs is None:
         _fail("Missing 'coordinate_system' field")
 
+    up_axis = cs.get("up_axis")
+    if up_axis != "+Z":
+        _fail(f"coordinate_system.up_axis must be '+Z', got: {up_axis!r}")
+
+    forward_axis = cs.get("forward_axis")
+    if forward_axis != "+Y":
+        _fail(f"coordinate_system.forward_axis must be '+Y', got: {forward_axis!r}")
+
     handedness = cs.get("handedness")
-    if handedness not in ("RIGHT", "LEFT"):
-        _fail(f"coordinate_system.handedness must be 'RIGHT' or 'LEFT', got: {handedness!r}")
+    if handedness != "RIGHT":
+        _fail(f"coordinate_system.handedness must be 'RIGHT', got: {handedness!r}")
 
     winding = cs.get("winding")
-    if winding not in ("CW", "CCW"):
-        _fail(f"coordinate_system.winding must be 'CW' or 'CCW', got: {winding!r}")
-
-    valid_axes = ("+X", "-X", "+Y", "-Y", "+Z", "-Z")
-    up = cs.get("up_axis")
-    forward = cs.get("forward_axis")
-    if up not in valid_axes:
-        _fail(f"Invalid coordinate_system.up_axis: {up!r}")
-    if forward not in valid_axes:
-        _fail(f"Invalid coordinate_system.forward_axis: {forward!r}")
-    if up[1] == forward[1]:
-        _fail(f"up_axis and forward_axis must not be parallel: {up}, {forward}")
+    if winding != "CCW":
+        _fail(f"coordinate_system.winding must be 'CCW', got: {winding!r}")
 
     meters_per_unit = cs.get("meters_per_unit")
     if not isinstance(meters_per_unit, (int, float)):
@@ -267,11 +247,12 @@ _DOMAIN_COUNT_KEY = {
     "CORNER": "corners",
 }
 
-_VALID_SEMANTICS = {"POSITION", "DIRECTION", "ROTATION", "TANGENT", "COLOR", "NONE"}
+_VALID_SEMANTICS = {"POSITION", "DIRECTION", "NORMAL", "ROTATION", "TANGENT", "COLOR", "NONE"}
 
 _SEMANTIC_CONSTRAINTS = {
     "POSITION": ("F32", 3),
     "DIRECTION": ("F32", 3),
+    "NORMAL": ("F32", 3),
     "ROTATION": ("F32", 4),
     "TANGENT": ("F32", 4),
     "COLOR": {("F32", 4), ("U8", 4)},
@@ -504,6 +485,19 @@ def _validate_object(obj: Dict[str, Any], mesh_count: int, obj_index: int) -> No
     transform = obj.get("transform")
     if not isinstance(transform, list) or len(transform) != 16:
         _fail(f"{prefix}: transform must be a list of 16 values, got {transform!r}")
+
+    # object.transform의 선형(3x3) 부분이 비특이 행렬인지 검증한다.
+    # column-major 직렬화: 인덱스 0,1,2 / 4,5,6 / 8,9,10이 열 벡터들.
+    m00, m10, m20 = transform[0], transform[1], transform[2]
+    m01, m11, m21 = transform[4], transform[5], transform[6]
+    m02, m12, m22 = transform[8], transform[9], transform[10]
+    det = (
+        m00 * (m11 * m22 - m12 * m21)
+        - m01 * (m10 * m22 - m12 * m20)
+        + m02 * (m10 * m21 - m11 * m20)
+    )
+    if abs(det) < 1e-12:
+        _fail(f"{prefix}: transform linear part is singular (det={det})")
 
 
 def _unpack_u32(desc: Dict[str, Any], bin_data: bytes) -> list:

@@ -1,6 +1,6 @@
 import bpy
 from bpy.types import Operator
-from bpy.props import BoolProperty, EnumProperty, FloatProperty, StringProperty
+from bpy.props import BoolProperty, FloatProperty, StringProperty
 from bpy_extras.io_utils import ExportHelper
 
 from pathlib import Path
@@ -10,25 +10,15 @@ from .topolyx_coordinate import CoordinateConverter
 from .topolyx_types import CoordinateSystem
 
 
-_AXIS_ITEMS = [
-    ("+X", "+X", "Positive X axis"),
-    ("-X", "-X", "Negative X axis"),
-    ("+Y", "+Y", "Positive Y axis"),
-    ("-Y", "-Y", "Negative Y axis"),
-    ("+Z", "+Z", "Positive Z axis"),
-    ("-Z", "-Z", "Negative Z axis"),
-]
-
-
 class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
     bl_idname = "export_mesh.tlyx"
     bl_label = "Export Topolyx"
     bl_options = {"PRESET"}
 
-    filename_ext = ".tlyx.json"
+    filename_ext = ".tlyx"
 
     filter_glob: StringProperty(
-        default="*.tlyx.json",
+        default="*.tlyx",
         options={"HIDDEN"},
         maxlen=255,
     )
@@ -37,51 +27,6 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
         name="Selection Only",
         description="Export only selected mesh objects",
         default=True,
-    )
-
-    coordinate_system_preset: EnumProperty(
-        name="Coordinate System Preset",
-        description="Select a preset or choose CUSTOM to configure axes manually",
-        items=[
-            ("TOPOLYX_DEFAULT", "Topolyx Default", "+Z up, +Y forward, right-handed, CCW"),
-            ("BLENDER", "Blender", "+Z up, +Y forward, right-handed, CCW (Blender native)"),
-            ("CUSTOM", "Custom", "Manually specify up/forward axes and other options"),
-        ],
-        default="TOPOLYX_DEFAULT",
-    )
-
-    up_axis: EnumProperty(
-        name="Up Axis",
-        description="Target coordinate system up axis",
-        items=_AXIS_ITEMS,
-        default="+Z",
-    )
-
-    forward_axis: EnumProperty(
-        name="Forward Axis",
-        description="Target coordinate system forward axis",
-        items=_AXIS_ITEMS,
-        default="+Y",
-    )
-
-    handedness: EnumProperty(
-        name="Handedness",
-        description="Target coordinate system handedness (left-handed is not supported)",
-        items=[
-            ("RIGHT", "Right-handed", "Right-handed coordinate system"),
-            ("LEFT", "Left-handed", "Left-handed coordinate system (not supported)"),
-        ],
-        default="RIGHT",
-    )
-
-    winding: EnumProperty(
-        name="Winding",
-        description="Target coordinate system polygon winding order",
-        items=[
-            ("CCW", "Counter-Clockwise", "Counter-clockwise polygon winding"),
-            ("CW", "Clockwise", "Clockwise polygon winding"),
-        ],
-        default="CCW",
     )
 
     meters_per_unit: FloatProperty(
@@ -117,22 +62,22 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
     )
 
     def check(self, _context):
-        """다중 확장자(.tlyx.json)가 중복되지 않도록 filepath를 보정한다."""
+        """확장자가 .tlyx로 끝나도록 filepath를 보정한다."""
         import os
 
         filepath = self.filepath
         if not os.path.basename(filepath):
             return False
 
-        ext = ".tlyx.json"
+        ext = ".tlyx"
         if filepath.endswith(ext):
             return False
 
-        # 사용자가 .json이나 .tlyx까지만 입력한 경우 깔끔하게 재구성
-        if filepath.endswith(".json"):
+        # 이전 확장자(.tlyx.json, .json)가 있으면 제거 후 .tlyx로 재구성
+        if filepath.endswith(".tlyx.json"):
+            filepath = filepath[:-10]
+        elif filepath.endswith(".json"):
             filepath = filepath[:-5]
-        elif filepath.endswith(".tlyx"):
-            filepath = filepath[:-6]
 
         new_filepath = bpy.path.ensure_ext(filepath, ext)
         if new_filepath != self.filepath:
@@ -146,15 +91,7 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
 
         box = layout.box()
         box.label(text="Coordinate System")
-        box.prop(self, "coordinate_system_preset")
-        custom = self.coordinate_system_preset == "CUSTOM"
-        sub = box.column()
-        sub.enabled = custom
-        sub.prop(self, "up_axis")
-        sub.prop(self, "forward_axis")
-        sub.prop(self, "handedness")
-        sub.prop(self, "winding")
-        sub.prop(self, "meters_per_unit")
+        box.prop(self, "meters_per_unit")
 
         layout.prop(self, "export_attributes")
         if self.export_attributes:
@@ -182,12 +119,6 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
             return {"CANCELLED"}
 
         coordinate_system = self._build_coordinate_system()
-        if coordinate_system.handedness == "LEFT":
-            self.report(
-                {"ERROR"},
-                "Left-handed coordinate systems are not supported by this extension",
-            )
-            return {"CANCELLED"}
 
         try:
             CoordinateConverter(coordinate_system)
@@ -195,9 +126,8 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
             self.report({"ERROR"}, f"Invalid coordinate system: {exc}")
             return {"CANCELLED"}
 
-        self.filepath = _ensure_topolyx_json_ext(self.filepath)
-        json_path = Path(self.filepath)
-        bin_path = json_path.with_name(json_path.stem + ".bin")
+        self.filepath = _ensure_tlyx_ext(self.filepath)
+        tlyx_path = Path(self.filepath)
 
         wm = context.window_manager
         wm.progress_begin(0, len(mesh_objects))
@@ -220,12 +150,12 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
 
             topolyx_validator.validate_topolyx_file(self.filepath)
         except topolyx_validator.TopolyxValidationError as exc:
-            _delete_export_files(json_path, bin_path)
+            _delete_export_file(tlyx_path)
             self.report({"ERROR"}, f"Topolyx validation failed: {exc}")
             return {"CANCELLED"}
         except Exception as exc:
             # Writer already cleans up on write failure; this catches any other error.
-            _delete_export_files(json_path, bin_path)
+            _delete_export_file(tlyx_path)
             self.report({"ERROR"}, f"Topolyx export failed: {exc}")
             return {"CANCELLED"}
         finally:
@@ -254,44 +184,27 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
 
     def _build_coordinate_system(self) -> CoordinateSystem:
         """Operator 설정으로부터 CoordinateSystem 객체를 생성한다."""
-        if self.coordinate_system_preset == "BLENDER":
-            return CoordinateSystem(
-                up_axis="+Z",
-                forward_axis="+Y",
-                handedness="RIGHT",
-                winding="CCW",
-                meters_per_unit=1.0,
-            )
-        if self.coordinate_system_preset == "TOPOLYX_DEFAULT":
-            return CoordinateSystem(
-                up_axis="+Z",
-                forward_axis="+Y",
-                handedness="RIGHT",
-                winding="CCW",
-                meters_per_unit=1.0,
-            )
         return CoordinateSystem(
-            up_axis=self.up_axis,
-            forward_axis=self.forward_axis,
-            handedness=self.handedness,
-            winding=self.winding,
+            up_axis="+Z",
+            forward_axis="+Y",
+            handedness="RIGHT",
+            winding="CCW",
             meters_per_unit=self.meters_per_unit,
         )
 
 
-def _ensure_topolyx_json_ext(filepath: str) -> str:
-    """filepath가 .tlyx.json로 끝나도록 보정한다."""
-    ext = ".tlyx.json"
+def _ensure_tlyx_ext(filepath: str) -> str:
+    """filepath가 .tlyx로 끝나도록 보정한다."""
+    ext = ".tlyx"
     if filepath.endswith(ext):
         return filepath
+    if filepath.endswith(".tlyx.json"):
+        return filepath[:-10] + ext
     if filepath.endswith(".json"):
         return filepath[:-5] + ext
-    if filepath.endswith(".tlyx"):
-        return filepath + ".json"
     return filepath + ext
 
 
-def _delete_export_files(json_path: Path, bin_path: Path) -> None:
-    """익스포트 도중 생성된 파일 쌍을 삭제한다."""
-    json_path.unlink(missing_ok=True)
-    bin_path.unlink(missing_ok=True)
+def _delete_export_file(path: Path) -> None:
+    """익스포트 도중 생성된 .tlyx 파일을 삭제한다."""
+    path.unlink(missing_ok=True)

@@ -8,10 +8,10 @@ import bpy
 from mathutils import Quaternion, Vector
 
 from . import topolyx_attribute, topolyx_binary, topolyx_coordinate, topolyx_mesh
+from .topolyx_binary import write_tlyx_container
 from .topolyx_coordinate import CoordinateConverter
 from .topolyx_types import (
     Attribute,
-    Buffer,
     CoordinateSystem,
     DataDescriptor,
     Header,
@@ -47,7 +47,7 @@ def write_topolyx(
     """Export one or more mesh objects as a Topolyx file pair.
 
     Args:
-        filepath: Destination .tlyx.json path.
+        filepath: Destination .tlyx path.
         objects: Sequence of Blender MESH objects to export.
         coordinate_system: Target CoordinateSystem descriptor.
         export_attributes: Whether to export mesh attributes.
@@ -59,9 +59,7 @@ def write_topolyx(
     Returns:
         List of warning messages collected during export.
     """
-    path = Path(filepath)
-    bin_path = path.parent / (path.stem + ".bin")
-    bin_uri = bin_path.name
+    path = _ensure_tlyx_ext(Path(filepath))
 
     converter = CoordinateConverter(coordinate_system)
     target_cs = converter.target
@@ -113,20 +111,20 @@ def write_topolyx(
 
     topolyx_file = TopolyxFile(
         header=Header(),
-        buffer=Buffer(uri=bin_uri, byte_length=buffer.byte_length()),
         coordinate_system=target_cs,
         objects=object_entries,
         meshes=meshes,
     )
 
     try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(topolyx_file.to_dict(), f, indent=4, ensure_ascii=False)
-        buffer.write(bin_path)
+        json_bytes = json.dumps(
+            topolyx_file.to_dict(), indent=4, ensure_ascii=False
+        ).encode("utf-8")
+        container_bytes = write_tlyx_container(json_bytes, buffer.to_bytes())
+        path.write_bytes(container_bytes)
     except Exception:
-        # Remove incomplete file pair if writing fails mid-way.
+        # 쓰기 도중 실패하면 불완전한 파일을 제거한다.
         path.unlink(missing_ok=True)
-        bin_path.unlink(missing_ok=True)
         raise
 
     return all_warnings
@@ -135,6 +133,13 @@ def write_topolyx(
 def _parse_excluded_attribute_names(names_str: str) -> set[str]:
     """Parse a comma-separated attribute name string into a set."""
     return {name.strip() for name in names_str.split(",") if name.strip()}
+
+
+def _ensure_tlyx_ext(path: Path) -> Path:
+    """filepath가 .tlyx로 끝나도록 보정한다."""
+    if path.suffix == ".tlyx":
+        return path
+    return path.with_suffix(".tlyx")
 
 
 def _append_mesh(
@@ -261,6 +266,8 @@ def _convert_attribute_values(
         return _convert_vectors(values, converter.convert_position)
     elif semantic == "DIRECTION":
         return _convert_vectors(values, converter.convert_direction)
+    elif semantic == "NORMAL":
+        return _convert_vectors(values, converter.convert_normal)
     elif semantic == "ROTATION":
         return _convert_quaternions(values, converter.convert_rotation)
     elif semantic == "TANGENT":

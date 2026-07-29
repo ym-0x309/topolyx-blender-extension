@@ -51,7 +51,7 @@ class TOPOLYX_OT_export_mesh(bpy.types.Operator, ExportHelper)
 
 - **Operator 식별자**: `export_mesh.tlyx`
 - **레이블**: `Export Topolyx`
-- **파일 확장자**: `.tlyx.json`
+- **파일 확장자**: `.tlyx`
 
 #### 클래스 속성
 
@@ -62,11 +62,6 @@ class TOPOLYX_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_selection` | `BoolProperty` | `True`면 선택된 오브젝트만, `False`면 씬의 모든 메시 오브젝트 익스포트 |
-| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"`, `"TOPOLYX_DEFAULT"`, `"CUSTOM"` 좌표계 preset 선택 |
-| `up_axis` | `EnumProperty` | CUSTOM preset에서 up axis (`+X`~`-Z`) |
-| `forward_axis` | `EnumProperty` | CUSTOM preset에서 forward axis (`+X`~`-Z`) |
-| `handedness` | `EnumProperty` | `"RIGHT"` 또는 `"LEFT"` (LEFT는 미지원) |
-| `winding` | `EnumProperty` | `"CCW"` 또는 `"CW"` |
 | `meters_per_unit` | `FloatProperty` | 좌표계에서 1단위가 의미하는 미터 값 |
 | `export_attributes` | `BoolProperty` | attribute 익스포트 여부 |
 | `exclude_hidden_attributes` | `BoolProperty` | 낶부 Outputplus/internal attribute 제외 여부 |
@@ -78,7 +73,7 @@ class TOPOLYX_OT_export_mesh(bpy.types.Operator, ExportHelper)
 ```python
 def check(self, context: bpy.types.Context) -> bool
 ```
-- `ExportHelper`의 기본 `check()`를 오버라이드하여 `.tlyx.json` 다중 확장자가 중복되지 않도록 filepath를 보정한다.
+- `ExportHelper`의 기본 `check()`를 오버라이드하여 `.tlyx` 확장자가 중복되지 않도록 filepath를 보정한다.
 
 ```python
 def draw(self, context: bpy.types.Context) -> None
@@ -112,15 +107,15 @@ def write_topolyx(
 ```
 
 - **입력**:
-  - `filepath`: 사용자가 선택한 `.tlyx.json` 파일 경로
-  - `objects`: 내보낼 MESH 타입 Blender 오브젝트 목록
+  - `filepath`: 사용자가 선택한 `.tlyx` 파일 경로
+  - `objects`: 낳볼 MESH 타입 Blender 오브젝트 목록
   - `coordinate_system`: `CoordinateSystem` 객체 형태의 목표 좌표계
   - `remove_semantic_prefix`: semantic prefix를 attribute 이름에서 제거할지 여부
-  - `export_attributes`: attribute 내보내기 여부
-  - `exclude_hidden_attributes`: 내부 Outputplus/internal attribute 제외 여부
+  - `export_attributes`: attribute 낳볼내기 여부
+  - `exclude_hidden_attributes`: 낮부 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
 - **동작**:
-  - 동일한 basename을 가진 `.tlyx.json`과 `.tlyx.bin`을 생성한다.
+  - `.tlyx` 단일 파일을 생성한다.
   - `objects`를 순회하며 메시 데이터 블록을 기준으로 중복을 제거한다.
   - 동일한 메시를 참조하는 오브젝트는 `meshes` 배열에서 한 번만 기록된다.
 - **반환**: 내보내는 중 발생한 경고 메시지 목록
@@ -141,15 +136,15 @@ def _append_mesh(
 
 ## `topolyx_reader.py`
 
-- **역할**: Topolyx `.tlyx.json` + `.tlyx.bin` 파일 쌍을 읽어 `TopolyxFile` 데이터 모델과 raw binary bytes로 복원한다.
+- **역할**: Topolyx `.tlyx` 단일 파일을 읽어 `TopolyxFile` 데이터 모델과 raw binary bytes로 복원한다.
 
 ### Public API
 
 ```python
-def read_topolyx(json_path: str | Path) -> Tuple[TopolyxFile, bytes]
+def read_topolyx(filepath: str | Path) -> Tuple[TopolyxFile, bytes]
 ```
 
-- 지정한 JSON 경로와 동일한 basename의 `.tlyx.bin` 파일을 함께 읽는다.
+- `.tlyx` 컨테이너 파일을 읽어 JSON 청크와 BIN 청크를 분리한다.
 - `topolyx_validator.validate_topolyx()`로 검증한 후 `TopolyxFile.from_dict()`를 통해 파싱한다.
 - 검증 실패 시 `TopolyxValidationError`를 발생시킨다.
 
@@ -203,7 +198,7 @@ class TOPOLYX_OT_import_mesh(Operator, ImportHelper)
 
 - **Operator 식별자**: `import_mesh.tlyx`
 - **레이블**: `Import Topolyx`
-- **파일 확장자**: `.tlyx.json`
+- **파일 확장자**: `.tlyx`
 - **bl_options**: `{"PRESET", "UNDO"}`
 
 #### 클래스 속성
@@ -257,6 +252,7 @@ class TopolyxFile
 ```
 
 - 전체 JSON 문서 루트. `to_dict()`로 dict로 변환한다.
+- `header`, `coordinate_system`, `objects`, `meshes`를 포함한다.
 
 ```python
 @dataclass
@@ -264,14 +260,14 @@ class Attribute
 ```
 
 - 일반 attribute의 JSON 표현. `name`, `domain`, `semantic`, `data: DataDescriptor`를 포함한다.
-- `semantic`은 `"POSITION"`, `"DIRECTION"`, `"ROTATION"`, `"TANGENT"`, `"COLOR"`, `"NONE"` 중 하나이며 기본값은 `"NONE"`이다.
+- `semantic`은 `"POSITION"`, `"DIRECTION"`, `"NORMAL"`, `"ROTATION"`, `"TANGENT"`, `"COLOR"`, `"NONE"` 중 하나이며 기본값은 `"NONE"`이다.
 
 ```python
 @dataclass
 class Header
 ```
 
-- `format`은 `"Topolyx"`, `version`은 `"0.3"`이다.
+- `format`은 `"Topolyx"`, `version`은 `"1.0"`이다.
 
 ## `topolyx_mesh.py`
 
@@ -589,20 +585,22 @@ def validate_topolyx(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
 
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
-- `header.version`의 major/minor 버전이 지원 버전(`0.3.0` → `0.3`)과 일치하는지 검사한다.
+- `header.version`의 major/minor 버전이 지원 버전(`1.0.0` → `1.0`)과 일치하는지 검사한다.
+- `.tlyx` 컨테이너 구조(magic, version, total_length, 청크 타입/길이/패딩)를 검사한다.
+- `coordinate_system`이 Topolyx v1.0.0 고정값(`+Z` up, `+Y` forward, `RIGHT`, `CCW`)을 따르는지 검사한다.
 - `attributes`에 대해 이름 중복, domain, semantic, component_type, component_count, element_count, byte offset/length를 검사한다.
 - descriptor의 `byte_offset`과 `byte_length`가 음수가 아닌지 검사한다.
 - `coordinate_system.meters_per_unit`이 양의 유한수인지 검사한다.
 - object/mesh/attribute 이름이 비어 있거나 잘못 중복되지 않는지 검사한다.
+- object `transform`의 선형 부분이 비특이 행렬인지 검사한다.
 - topology `edges`에 self-edge나 중복 edge가 없는지 검사한다.
 - 조건을 만족하지 않으면 `TopolyxValidationError`를 발생시킨다.
 
 ```python
-def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> None
+def validate_topolyx_file(filepath: Path) -> None
 ```
 
-- JSON 파일 경로를 기준으로 `.tlyx.json` + `.tlyx.bin` 파일 쌍을 읽어 검증한다.
-- `bin_path`를 생략하면 `json_path`와 동일한 basename의 `.tlyx.bin`을 사용한다.
+- `.tlyx` 단일 파일을 읽어 JSON 청크와 BIN 청크를 분리한 후 검증한다.
 
 ## `tests/common.py`
 

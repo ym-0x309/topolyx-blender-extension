@@ -117,8 +117,7 @@ def test_read_topolyx():
         topolyx_file, bin_data = read_topolyx(json_path)
 
         assert topolyx_file.header.format == "Topolyx"
-        assert topolyx_file.header.version == "0.3"
-        assert topolyx_file.buffer.byte_length == len(bin_data)
+        assert topolyx_file.header.version == "1.0"
         assert len(topolyx_file.objects) == 1
         assert len(topolyx_file.meshes) == 1
 
@@ -143,15 +142,7 @@ def test_read_topolyx():
 def test_from_coordinate_system():
     """CoordinateSystem 객체로부터 생성한 변환기가 preset 변환기와 동일한지 확인한다."""
     preset_converter = CoordinateConverter("TOPOLYX_DEFAULT")
-    cs_converter = CoordinateConverter.from_coordinate_system(
-        CoordinateSystem(
-            up_axis="+Z",
-            forward_axis="+Y",
-            handedness="RIGHT",
-            winding="CCW",
-            meters_per_unit=1.0,
-        )
-    )
+    cs_converter = CoordinateConverter.from_coordinate_system(CoordinateSystem())
 
     pos = Vector((1.0, 2.0, 3.0))
     assert (
@@ -165,41 +156,11 @@ def test_from_coordinate_system():
     print("test_from_coordinate_system passed")
 
 
-def test_arbitrary_coordinate_system():
-    """임의의 right-handed 좌표계에서 양방향 변환이 정확한지 확인한다."""
-    cs = CoordinateSystem(
-        up_axis="+Y",
-        forward_axis="+Z",
-        handedness="RIGHT",
-        winding="CCW",
-        meters_per_unit=1.0,
-    )
-    converter = CoordinateConverter.from_coordinate_system(cs)
-
-    pos = Vector((1.0, 2.0, 3.0))
-    converted = converter.convert_position(pos)
-    recovered = converter.inverse_convert_position(converted)
-    assert (pos - recovered).length < 1e-6
-
-    matrix = Matrix.Translation(Vector((4.0, 5.0, 6.0)))
-    converted_matrix = converter.convert_matrix(matrix)
-    recovered_matrix = converter.inverse_convert_matrix(converted_matrix)
-    assert (matrix.to_translation() - recovered_matrix.to_translation()).length < 1e-6
-
-    print("test_arbitrary_coordinate_system passed")
-
-
 def test_winding_property():
-    """converter.winding이 CoordinateSystem의 winding을 올바르게 반환하는지 확인한다."""
-    converter_ccw = CoordinateConverter.from_coordinate_system(
-        CoordinateSystem(winding="CCW")
-    )
-    converter_cw = CoordinateConverter.from_coordinate_system(
-        CoordinateSystem(winding="CW")
-    )
+    """converter.winding이 Topolyx v1.0.0의 고정 CCW 값을 반환하는지 확인한다."""
+    converter = CoordinateConverter.from_coordinate_system(CoordinateSystem())
 
-    assert converter_ccw.winding == "CCW"
-    assert converter_cw.winding == "CW"
+    assert converter.winding == "CCW"
 
     print("test_winding_property passed")
 
@@ -233,7 +194,7 @@ def test_meters_per_unit_scaling():
 
 
 def test_invalid_coordinate_system_rejected():
-    """Left-handed이거나 평행한 축을 가진 좌표계는 생성 시 거부되어야 한다."""
+    """Topolyx v1.0.0에서 허용하지 않는 좌표계는 생성 시 거부되어야 한다."""
     try:
         CoordinateConverter.from_coordinate_system(
             CoordinateSystem(
@@ -263,8 +224,8 @@ def test_invalid_coordinate_system_rejected():
     print("test_invalid_coordinate_system_rejected passed")
 
 
-def test_custom_coordinate_system_export():
-    """CUSTOM preset과 up_axis/forward_axis/meters_per_unit가 파일에 반영되는지 확인한다."""
+def test_custom_meters_per_unit_export():
+    """meters_per_unit가 파일에 반영되는지 확인한다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
 
@@ -273,39 +234,27 @@ def test_custom_coordinate_system_export():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "custom_cs",
-            coordinate_system_preset="CUSTOM",
-            up_axis="+Y",
-            forward_axis="+Z",
-            handedness="RIGHT",
-            winding="CW",
             meters_per_unit=2.0,
         )
         data, _ = common.load_result(json_path, bin_path)
 
         cs = data["coordinate_system"]
-        assert cs["up_axis"] == "+Y"
-        assert cs["forward_axis"] == "+Z"
+        assert cs["up_axis"] == "+Z"
+        assert cs["forward_axis"] == "+Y"
         assert cs["handedness"] == "RIGHT"
-        assert cs["winding"] == "CW"
+        assert cs["winding"] == "CCW"
         assert abs(cs["meters_per_unit"] - 2.0) < 1e-6
     finally:
         import shutil
+
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    print("test_custom_coordinate_system_export passed")
+    print("test_custom_meters_per_unit_export passed")
 
 
 def test_rotation_tangent_conversion_round_trip():
     """ROTATION/TANGENT semantic attribute의 좌표계 변환이 round-trip으로 복원된다."""
-    converter = CoordinateConverter.from_coordinate_system(
-        CoordinateSystem(
-            up_axis="+Y",
-            forward_axis="+Z",
-            handedness="RIGHT",
-            winding="CCW",
-            meters_per_unit=1.0,
-        )
-    )
+    converter = CoordinateConverter.from_coordinate_system(CoordinateSystem())
 
     q = Quaternion((0.5, 0.5, 0.5, 0.5))
     converted = converter.convert_rotation(q)
@@ -328,11 +277,10 @@ def main():
     test_binary_buffer_reader()
     test_topolyx_component_type_to_blender()
     test_from_coordinate_system()
-    test_arbitrary_coordinate_system()
     test_winding_property()
     test_meters_per_unit_scaling()
     test_invalid_coordinate_system_rejected()
-    test_custom_coordinate_system_export()
+    test_custom_meters_per_unit_export()
     test_rotation_tangent_conversion_round_trip()
     test_read_topolyx()
     print("All Phase 6 tests passed")

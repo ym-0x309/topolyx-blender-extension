@@ -56,48 +56,46 @@ def select_only(objs: Sequence[bpy.types.Object]) -> None:
 def export_active_object(
     tmpdir: Path, name: str, **operator_kwargs
 ) -> tuple[Path, Path]:
-    """현재 active object를 익스포트하고 JSON/bin 경로를 반환한다."""
+    """현재 active object를 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
     obj = bpy.context.active_object
     if obj is not None:
         obj.select_set(True)
-    json_path = tmpdir / f"{name}.tlyx.json"
-    result = bpy.ops.export_mesh.tlyx(filepath=str(json_path), **operator_kwargs)
+    tlyx_path = tmpdir / f"{name}.tlyx"
+    result = bpy.ops.export_mesh.tlyx(filepath=str(tlyx_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    bin_path = json_path.with_name(json_path.stem + ".bin")
-    return json_path, bin_path
+    return tlyx_path, tlyx_path
 
 
 def export_selected(
     tmpdir: Path, name: str, **operator_kwargs
 ) -> tuple[Path, Path]:
-    """현재 선택된 오브젝트들을 익스포트하고 JSON/bin 경로를 반환한다."""
-    json_path = tmpdir / f"{name}.tlyx.json"
+    """현재 선택된 오브젝트들을 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
+    tlyx_path = tmpdir / f"{name}.tlyx"
     result = bpy.ops.export_mesh.tlyx(
-        filepath=str(json_path), use_selection=True, **operator_kwargs
+        filepath=str(tlyx_path), use_selection=True, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    bin_path = json_path.with_name(json_path.stem + ".bin")
-    return json_path, bin_path
+    return tlyx_path, tlyx_path
 
 
 def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]:
-    """씬의 모든 메시 오브젝트를 익스포트하고 JSON/bin 경로를 반환한다."""
-    json_path = tmpdir / f"{name}.tlyx.json"
+    """씬의 모든 메시 오브젝트를 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
+    tlyx_path = tmpdir / f"{name}.tlyx"
     result = bpy.ops.export_mesh.tlyx(
-        filepath=str(json_path), use_selection=False, **operator_kwargs
+        filepath=str(tlyx_path), use_selection=False, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    bin_path = json_path.with_name(json_path.stem + ".bin")
-    return json_path, bin_path
+    return tlyx_path, tlyx_path
 
 
 def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]:
-    """JSON과 binary 데이터를 읽어 검증 후 반환한다."""
-    with open(json_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
-    bin_data = bin_path.read_bytes()
-
+    """.tlyx 파일에서 JSON 메타데이터와 binary 데이터를 분리해 검증 후 반환한다."""
+    from topolyx_blender_extension.topolyx_binary import read_tlyx_container
     from topolyx_blender_extension import topolyx_validator
+
+    container_data = json_path.read_bytes()
+    json_bytes, bin_data = read_tlyx_container(container_data)
+    data = json.loads(json_bytes.decode("utf-8"))
 
     topolyx_validator.validate_topolyx(data, bin_data)
     return data, bin_data
@@ -162,14 +160,14 @@ def tempdir() -> Path:
     return Path(tempfile.mkdtemp(prefix="topolyx_test_"))
 
 
-def import_topolyx_file(json_path: Path, **operator_kwargs) -> None:
-    """Topolyx 파일을 Import Operator로 불러온다."""
-    result = bpy.ops.import_mesh.tlyx(filepath=str(json_path), **operator_kwargs)
+def import_topolyx_file(tlyx_path: Path, **operator_kwargs) -> None:
+    """Topolyx .tlyx 파일을 Import Operator로 불러온다."""
+    result = bpy.ops.import_mesh.tlyx(filepath=str(tlyx_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Import operator returned {result}"
 
 
-def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
-    """Topolyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+def import_topology_only(tlyx_path: Path, _bin_path: Path) -> bpy.types.Mesh:
+    """Topolyx .tlyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 
     Attribute 복원은 포함하지 않으며, Phase 8 attribute import 테스트에서
     mesh 생성 부분을 공유하기 위한 헬퍼이다.
@@ -181,7 +179,7 @@ def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
     from topolyx_blender_extension.topolyx_mesh_import import build_blender_mesh
     from topolyx_blender_extension.topolyx_reader import read_topolyx
 
-    topolyx_file, bin_data = read_topolyx(json_path)
+    topolyx_file, bin_data = read_topolyx(tlyx_path)
     mesh_data = topolyx_file.meshes[0]
     topo = mesh_data.topology
     reader = BinaryBufferReader(bin_data)

@@ -29,7 +29,7 @@ def main():
 
     tmpdir = common.tempdir()
     try:
-        test_path = tmpdir / "test.tlyx.json"
+        test_path = tmpdir / "test.tlyx"
         result = bpy.ops.export_mesh.tlyx(filepath=str(test_path))
         assert result == {"FINISHED"}, f"Operator returned {result}"
         print(f"Phase 0 smoke test passed: {test_path}")

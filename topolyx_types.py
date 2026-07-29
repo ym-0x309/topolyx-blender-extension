@@ -1,4 +1,4 @@
-"""Topolyx 포맷 v0.3.0에 사용하는 데이터 모델."""
+"""Topolyx 포맷 v1.0.0에 사용하는 데이터 모델."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -191,7 +191,7 @@ class Header:
     """Topolyx 파일 헤더."""
 
     format: str = "Topolyx"
-    version: str = "0.3"
+    version: str = "1.0"
 
     def to_dict(self) -> Dict[str, str]:
         return {"format": self.format, "version": self.version}
@@ -232,26 +232,10 @@ class CoordinateSystem:
 
 
 @dataclass
-class Buffer:
-    """Binary buffer 메타데이터."""
-
-    uri: str
-    byte_length: int
-
-    def to_dict(self) -> Dict[str, Any]:
-        return {"uri": self.uri, "byte_length": self.byte_length}
-
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "Buffer":
-        return cls(uri=data["uri"], byte_length=data["byte_length"])
-
-
-@dataclass
 class TopolyxFile:
     """전체 Topolyx JSON 문서."""
 
     header: Header
-    buffer: Buffer
     coordinate_system: CoordinateSystem
     objects: List[ObjectEntry]
     meshes: List[Mesh]
@@ -259,7 +243,6 @@ class TopolyxFile:
     def to_dict(self) -> Dict[str, Any]:
         return {
             "header": self.header.to_dict(),
-            "buffer": self.buffer.to_dict(),
             "coordinate_system": self.coordinate_system.to_dict(),
             "objects": [obj.to_dict() for obj in self.objects],
             "meshes": [mesh.to_dict() for mesh in self.meshes],
@@ -269,7 +252,6 @@ class TopolyxFile:
     def from_dict(cls, data: Dict[str, Any]) -> "TopolyxFile":
         return cls(
             header=Header.from_dict(data["header"]),
-            buffer=Buffer.from_dict(data["buffer"]),
             coordinate_system=CoordinateSystem.from_dict(data["coordinate_system"]),
             objects=[ObjectEntry.from_dict(obj) for obj in data["objects"]],
             meshes=[Mesh.from_dict(mesh) for mesh in data["meshes"]],

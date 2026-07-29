@@ -4,6 +4,7 @@ Usage:
     blender -b -P tests/test_phase9.py
 """
 
+import json
 import sys
 from pathlib import Path
 
@@ -202,14 +203,19 @@ def test_import_reserved_attribute_name_renamed():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "reserved_import")
 
-        # Modify JSON to use reserved name
-        import json
+        # .tlyx 컨테이너에서 JSON을 분리해 예약어로 수정한 후 다시 조립한다.
+        from topolyx_blender_extension.topolyx_binary import (
+            read_tlyx_container,
+            write_tlyx_container,
+        )
 
-        with open(json_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
+        container_data = json_path.read_bytes()
+        json_bytes, bin_data = read_tlyx_container(container_data)
+        data = json.loads(json_bytes.decode("utf-8"))
         data["meshes"][0]["attributes"][0]["name"] = "position"
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=4)
+        modified_json_bytes = json.dumps(data, indent=4, ensure_ascii=False).encode("utf-8")
+        modified_container = write_tlyx_container(modified_json_bytes, bin_data)
+        json_path.write_bytes(modified_container)
 
         common.clear_scene()
         warnings = import_topolyx(json_path)

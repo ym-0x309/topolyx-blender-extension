@@ -28,7 +28,7 @@ def test_default_cube_topolyx_default():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "cube_topolyx_default",
-            coordinate_system_preset="TOPOLYX_DEFAULT",
+            meters_per_unit=1.0,
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -84,7 +84,7 @@ def test_transformed_cube_topolyx_default():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "transformed_cube_topolyx_default",
-            coordinate_system_preset="TOPOLYX_DEFAULT",
+            meters_per_unit=1.0,
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -128,7 +128,7 @@ def test_blender_preset_unchanged():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "cube_blender",
-            coordinate_system_preset="BLENDER",
+            meters_per_unit=1.0,
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -166,7 +166,7 @@ def test_face_offsets_order():
         json_path, bin_path = common.export_active_object(
             tmpdir,
             "ordered_faces",
-            coordinate_system_preset="BLENDER",
+            meters_per_unit=1.0,
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -188,10 +188,10 @@ def test_face_offsets_order():
 
 
 def test_coordinate_converter_matrix():
-    """CoordinateConverter.convert_matrix가 similarity transform을 수행하는지 확인한다."""
+    """CoordinateConverter.convert_matrix가 meters_per_unit 스케일을 수행하는지 확인한다."""
     converter = CoordinateConverter("TOPOLYX_DEFAULT")
 
-    # Blender와 TOPOLYX_DEFAULT는 동일한 좌표계이므로 translation 변환 없음
+    # Topolyx v1.0.0은 Blender와 동일한 고정 좌표계이므로 translation 변환 없음
     T = Matrix.Translation(Vector((1, 2, 3)))
     converted = converter.convert_matrix(T)
     translation = converted.to_translation()
@@ -199,7 +199,7 @@ def test_coordinate_converter_matrix():
     assert abs(translation.y - 2.0) < 1e-6
     assert abs(translation.z - 3.0) < 1e-6
 
-    # BLENDER preset은 identity 변환
+    # BLENDER preset도 동일한 고정 좌표계를 사용
     blender_converter = CoordinateConverter("BLENDER")
     converted_id = blender_converter.convert_matrix(T)
     t = converted_id.to_translation()

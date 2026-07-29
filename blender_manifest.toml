@@ -2,7 +2,7 @@ schema_version = "1.0.0"
 
 id = "topolyx_blender_extension"
 name = "Topolyx Blender Extension"
-version = "0.0.1"
+version = "1.0.0"
 tagline = "Import and export Blender meshes to the Topolyx format"
 maintainer = "0x309 <ymh0402@proton.me>"
 type = "add-on"

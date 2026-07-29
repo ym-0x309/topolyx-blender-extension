@@ -64,11 +64,11 @@ _DOMAIN_COUNT_KEY = {
 }
 
 # semantic prefix 기반 매핑에 사용할 접두사 목록
-_SEMANTIC_PREFIXES = ("POSITION", "DIRECTION", "ROTATION", "TANGENT", "COLOR")
+_SEMANTIC_PREFIXES = ("POSITION", "DIRECTION", "NORMAL", "ROTATION", "TANGENT", "COLOR")
 
 # Blender 기본 attribute 이름 → Topolyx semantic 자동 매핑
 _DEFAULT_SEMANTIC_MAP = {
-    "normal": "DIRECTION",
+    "normal": "NORMAL",
     "tangent": "TANGENT",
     "Col": "COLOR",
     "color": "COLOR",

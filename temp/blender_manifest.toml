@@ -1,0 +1,16 @@
+schema_version = "1.0.0"
+
+id = "blender_mattr_exporter"
+name = "MATTR Exporter"
+version = "0.0.1"
+tagline = "Export Blender meshes to MATTR format"
+maintainer = "0x309 <ymh0402@proton.me>"
+type = "add-on"
+
+tags = ["Import-Export"]
+
+blender_version_min = "5.1.0"
+
+license = [
+    "SPDX:MIT",
+]

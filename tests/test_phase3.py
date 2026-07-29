@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_default_cube_with_uvmap():
@@ -23,8 +23,8 @@ def test_default_cube_with_uvmap():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "cube")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "cube")
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         assert mesh["element_counts"] == {
@@ -69,10 +69,10 @@ def test_export_attributes_disabled():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir, "cube_no_attrs", export_attributes=False
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         assert mesh["attributes"] == []
@@ -97,8 +97,8 @@ def test_custom_point_float_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "point_float")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "point_float")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "PointFloat")
         assert attr["domain"] == "POINT"
@@ -129,8 +129,8 @@ def test_custom_face_int_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "face_int")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "face_int")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "FaceInt")
         assert attr["domain"] == "FACE"
@@ -163,8 +163,8 @@ def test_vertex_color_float():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "float_color")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "float_color")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "FloatColor")
         assert attr["domain"] == "CORNER"
@@ -197,8 +197,8 @@ def test_vertex_color_byte():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "byte_color")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "byte_color")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "ByteColor")
         assert attr["domain"] == "CORNER"
@@ -231,8 +231,8 @@ def test_exclude_internal_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "cube_filtered")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "cube_filtered")
+        data, bin_data = common.load_result(tlyx_path)
 
         names = {attr["name"] for attr in data["meshes"][0]["attributes"]}
         for name in names:
@@ -260,12 +260,12 @@ def test_exclude_by_name():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "excluded",
             excluded_attribute_names="SkipMe",
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         names = {attr["name"] for attr in data["meshes"][0]["attributes"]}
         assert "SkipMe" not in names
@@ -291,8 +291,8 @@ def test_boolean_attribute_supported():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "bool_attr")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "bool_attr")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "FaceBool")
         assert attr["domain"] == "FACE"
@@ -320,8 +320,8 @@ def test_empty_mesh_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "empty")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "empty")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert data["meshes"][0]["attributes"] == []
     finally:
@@ -339,8 +339,8 @@ def test_uv_map_values():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "uv_values")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "uv_values")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "UVMap")
         desc = attr["data"]
@@ -373,15 +373,15 @@ def test_semantic_prefix():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "with_prefix")
-        data, _ = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "with_prefix")
+        data, _ = common.load_result(tlyx_path)
         attr = common.find_attribute(data, "DIRECTION_MyAttr")
         assert attr["semantic"] == "DIRECTION"
 
-        json_path2, _ = common.export_active_object(
+        tlyx_path2 = common.export_active_object(
             tmpdir, "no_prefix", remove_semantic_prefix=True
         )
-        data2, _ = common.load_result(json_path2, bin_path)
+        data2, _ = common.load_result(tlyx_path2)
         attr2 = common.find_attribute(data2, "MyAttr")
         assert attr2["semantic"] == "DIRECTION"
     finally:
@@ -407,8 +407,8 @@ def test_default_attribute_semantic():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "col_attr")
-        data, _ = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "col_attr")
+        data, _ = common.load_result(tlyx_path)
         attr = common.find_attribute(data, "Col")
         assert attr["semantic"] == "COLOR"
         assert attr["data"]["component_type"] == "U8"

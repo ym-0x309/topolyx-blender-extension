@@ -61,6 +61,12 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
         default=False,
     )
 
+    auto_assign_semantics: BoolProperty(
+        name="Auto Assign Semantics",
+        description="Automatically detect POSITION, DIRECTION, NORMAL, ROTATION, TANGENT, COLOR semantics from attribute names",
+        default=True,
+    )
+
     def check(self, _context):
         """확장자가 .tlyx로 끝나도록 filepath를 보정한다."""
         import os
@@ -100,6 +106,7 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
             box.prop(self, "exclude_hidden_attributes")
             box.prop(self, "excluded_attribute_names")
             box.prop(self, "remove_semantic_prefix")
+            box.prop(self, "auto_assign_semantics")
 
     def execute(self, context):
         if self.use_selection:
@@ -144,6 +151,7 @@ class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
                 exclude_hidden_attributes=self.exclude_hidden_attributes,
                 excluded_attribute_names=self.excluded_attribute_names,
                 remove_semantic_prefix=self.remove_semantic_prefix,
+                auto_assign_semantics=self.auto_assign_semantics,
                 progress_callback=_update_progress,
             )
             warnings.extend(writer_warnings)

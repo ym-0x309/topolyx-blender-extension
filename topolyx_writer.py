@@ -1,4 +1,4 @@
-"""Assemble and write Topolyx JSON + binary file pairs."""
+"""Assemble and write Topolyx JSON + binary files as a single `.tlyx` container."""
 
 import json
 from pathlib import Path
@@ -42,9 +42,10 @@ def write_topolyx(
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
     remove_semantic_prefix: bool = False,
+    auto_assign_semantics: bool = True,
     progress_callback: Optional[Callable[[int], None]] = None,
 ) -> List[str]:
-    """Export one or more mesh objects as a Topolyx file pair.
+    """Export one or more mesh objects as a Topolyx file.
 
     Args:
         filepath: Destination .tlyx path.
@@ -54,6 +55,7 @@ def write_topolyx(
         exclude_hidden_attributes: Skip internal/hidden attributes.
         excluded_attribute_names: Comma-separated attribute names to skip.
         remove_semantic_prefix: Strip semantic prefix (e.g. DIRECTION_) from attribute names.
+        auto_assign_semantics: Detect and assign semantic for standard attribute names.
         progress_callback: Optional callback receiving processed object count.
 
     Returns:
@@ -83,6 +85,7 @@ def write_topolyx(
                 exclude_hidden=exclude_hidden_attributes,
                 excluded_names=excluded_names,
                 remove_semantic_prefix=remove_semantic_prefix,
+                auto_assign_semantics=auto_assign_semantics,
             )
             all_warnings.extend(warnings)
 
@@ -137,8 +140,13 @@ def _parse_excluded_attribute_names(names_str: str) -> set[str]:
 
 def _ensure_tlyx_ext(path: Path) -> Path:
     """filepath가 .tlyx로 끝나도록 보정한다."""
-    if path.suffix == ".tlyx":
+    name = str(path)
+    if name.endswith(".tlyx"):
         return path
+    if name.endswith(".tlyx.json"):
+        return Path(name[:-10] + ".tlyx")
+    if name.endswith(".json"):
+        return Path(name[:-5] + ".tlyx")
     return path.with_suffix(".tlyx")
 
 

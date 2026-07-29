@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_two_separate_meshes():
@@ -27,8 +27,8 @@ def test_two_separate_meshes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "two_meshes")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "two_meshes")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 2
         assert len(data["meshes"]) == 2
@@ -66,8 +66,8 @@ def test_linked_duplicate_shared_mesh():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "linked_dup")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "linked_dup")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 2
         assert len(data["meshes"]) == 1
@@ -100,8 +100,8 @@ def test_selection_only():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "selection_only")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "selection_only")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 1
         assert data["objects"][0]["name"] == cube.name
@@ -126,10 +126,10 @@ def test_export_all_meshes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_all_meshes(
+        tlyx_path = common.export_all_meshes(
             tmpdir, "all_meshes", export_attributes=False
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 2
         object_names = {obj["name"] for obj in data["objects"]}
@@ -157,8 +157,8 @@ def test_non_mesh_skipped():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "skip_non_mesh")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "skip_non_mesh")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 1
         assert data["objects"][0]["name"] == cube.name
@@ -192,8 +192,8 @@ def test_shared_mesh_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "shared_attrs")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "shared_attrs")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 2
         assert len(data["meshes"]) == 1
@@ -227,8 +227,8 @@ def test_empty_mesh_in_multi():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "with_empty")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_selected(tmpdir, "with_empty")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert len(data["objects"]) == 2
         assert len(data["meshes"]) == 2

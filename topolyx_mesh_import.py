@@ -12,9 +12,10 @@ def build_blender_mesh(
     corner_vertices: Sequence[int],
     corner_edges: Sequence[int],
     face_offsets: Sequence[int],
-    winding: str = "CCW",
 ) -> bpy.types.Mesh:
     """Topolyx topology 배열로 Blender Mesh 데이터 블록을 생성한다.
+
+    Topolyx 1.0.0은 winding을 CCW로 고정하므로, 별도의 winding 변환은 수행하지 않는다.
 
     Args:
         name: 생성할 mesh 데이터 블록 이름.
@@ -23,8 +24,6 @@ def build_blender_mesh(
         corner_vertices: flat U32 배열. 길이는 corners.
         corner_edges: flat U32 배열. 길이는 corners.
         face_offsets: flat U32 배열. 길이는 faces + 1.
-        winding: 파일의 winding ("CW" 또는 "CCW"). Blender는 CCW를 기본으로 하므로
-            "CW"일 경우 각 face의 corner 순서를 뒤집는다.
 
     Returns:
         생성된 bpy.types.Mesh 데이터 블록.
@@ -37,14 +36,6 @@ def build_blender_mesh(
     )
 
     faces = _build_faces(corner_vertices, face_offsets)
-    reversed_corner_edges = list(corner_edges)
-
-    if winding == "CW":
-        faces, reversed_corner_edges = _reverse_face_winding(
-            faces, reversed_corner_edges, face_offsets
-        )
-    elif winding != "CCW":
-        raise ValueError(f"Unsupported winding: {winding!r} (expected 'CW' or 'CCW')")
 
     vertices = [
         (positions[i], positions[i + 1], positions[i + 2])
@@ -56,7 +47,7 @@ def build_blender_mesh(
     try:
         mesh.from_pydata(vertices, edge_pairs, faces)
         mesh.update()
-        _override_loop_edge_indices(mesh, reversed_corner_edges)
+        _override_loop_edge_indices(mesh, corner_edges)
         mesh.validate(verbose=False)
     except Exception:
         bpy.data.meshes.remove(mesh)
@@ -120,24 +111,6 @@ def _build_faces(
         end = face_offsets[i + 1]
         faces.append(list(corner_vertices[start:end]))
     return faces
-
-
-def _reverse_face_winding(
-    faces: List[List[int]],
-    corner_edges: Sequence[int],
-    face_offsets: Sequence[int],
-) -> tuple[List[List[int]], List[int]]:
-    """CW winding을 Blender의 CCW에 맞춰 각 face의 corner 순서를 뒤집는다."""
-    reversed_faces: List[List[int]] = []
-    reversed_corner_edges: List[int] = []
-
-    for face, start, end in zip(
-        faces, face_offsets[:-1], face_offsets[1:]
-    ):
-        reversed_faces.append(list(reversed(face)))
-        reversed_corner_edges.extend(reversed(corner_edges[start:end]))
-
-    return reversed_faces, reversed_corner_edges
 
 
 def _override_loop_edge_indices(

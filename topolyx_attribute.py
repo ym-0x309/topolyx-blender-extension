@@ -66,6 +66,16 @@ _DOMAIN_COUNT_KEY = {
 # semantic prefix 기반 매핑에 사용할 접두사 목록
 _SEMANTIC_PREFIXES = ("POSITION", "DIRECTION", "NORMAL", "ROTATION", "TANGENT", "COLOR")
 
+# semantic별 허용 (component_type, component_count) 조합. COLOR는 두 가지를 허용한다.
+_SEMANTIC_CONSTRAINTS = {
+    "POSITION": ("F32", 3),
+    "DIRECTION": ("F32", 3),
+    "NORMAL": ("F32", 3),
+    "ROTATION": ("F32", 4),
+    "TANGENT": ("F32", 4),
+    "COLOR": {("F32", 4), ("U8", 4)},
+}
+
 # Blender 기본 attribute 이름 → Topolyx semantic 자동 매핑
 _DEFAULT_SEMANTIC_MAP = {
     "normal": "NORMAL",
@@ -75,16 +85,52 @@ _DEFAULT_SEMANTIC_MAP = {
 }
 
 
-def _assign_semantic(name: str, data_type: str) -> str:
-    """Blender attribute 이름과 data_type에 따라 Topolyx semantic을 결정한다."""
+def _semantic_is_valid(
+    semantic: str, component_type: str, component_count: int
+) -> bool:
+    """주어진 semantic이 (component_type, component_count) 조합에서 유효한지 확인한다."""
+    constraint = _SEMANTIC_CONSTRAINTS.get(semantic)
+    if constraint is None:
+        return True
+    if isinstance(constraint, set):
+        return (component_type, component_count) in constraint
+    expected_type, expected_count = constraint
+    return component_type == expected_type and component_count == expected_count
+
+
+def _assign_semantic(
+    name: str,
+    data_type: str,
+    component_type: str,
+    component_count: int,
+    auto_assign_semantics: bool = True,
+) -> str:
+    """Blender attribute 이름과 data_type에 따라 Topolyx semantic을 결정한다.
+
+    auto_assign_semantics=False이면 모든 attribute의 semantic을 NONE으로 남긴다.
+    """
+    if not auto_assign_semantics:
+        return "NONE"
+
+    semantic: str = "NONE"
+
     if name in _DEFAULT_SEMANTIC_MAP:
-        return _DEFAULT_SEMANTIC_MAP[name]
-    for prefix in _SEMANTIC_PREFIXES:
-        if name.startswith(prefix + "_"):
-            return prefix
-    if data_type in ("FLOAT_COLOR", "BYTE_COLOR"):
-        return "COLOR"
-    return "NONE"
+        semantic = _DEFAULT_SEMANTIC_MAP[name]
+    else:
+        for prefix in _SEMANTIC_PREFIXES:
+            if name.startswith(prefix + "_"):
+                semantic = prefix
+                break
+
+    if semantic == "NONE" and data_type in ("FLOAT_COLOR", "BYTE_COLOR"):
+        semantic = "COLOR"
+
+    if semantic != "NONE" and not _semantic_is_valid(
+        semantic, component_type, component_count
+    ):
+        return "NONE"
+
+    return semantic
 
 
 def _strip_semantic_prefix(name: str) -> str:
@@ -102,8 +148,12 @@ def extract_attributes(
     exclude_hidden: bool = True,
     excluded_names: Optional[Set[str]] = None,
     remove_semantic_prefix: bool = False,
+    auto_assign_semantics: bool = True,
 ) -> Tuple[List[AttributeArrays], List[str]]:
     """Blender mesh에서 TOPOLYX로 낳볼 attribute 배열을 추출한다.
+
+    Args:
+        auto_assign_semantics: False이면 semantic 자동 할당을 하지 않고 모두 NONE으로 남긴다.
 
     Returns:
         (attributes, warnings): 추출된 attribute 목록과 사용자에게 보여줄 경고 메시지 목록
@@ -155,7 +205,13 @@ def extract_attributes(
             continue
 
         values = _read_attribute_values(attribute, data_type, component_count, prop_name)
-        semantic = _assign_semantic(name, data_type)
+        semantic = _assign_semantic(
+            name,
+            data_type,
+            component_type,
+            component_count,
+            auto_assign_semantics=auto_assign_semantics,
+        )
         attr_name = _strip_semantic_prefix(name) if remove_semantic_prefix else name
 
         attributes.append(

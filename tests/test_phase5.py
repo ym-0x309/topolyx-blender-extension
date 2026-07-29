@@ -13,12 +13,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension import topolyx_validator
-from topolyx_blender_extension.topolyx_binary import (
+from topolyx_import_export import topolyx_validator
+from topolyx_import_export.topolyx_binary import (
     read_tlyx_container,
     write_tlyx_container,
 )
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_ngon():
@@ -28,8 +28,8 @@ def test_ngon():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "ngon")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "ngon")
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         counts = mesh["element_counts"]
@@ -70,8 +70,8 @@ def test_mixed_triangle_quad_ngon():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "mixed")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "mixed")
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         counts = mesh["element_counts"]
@@ -103,8 +103,8 @@ def test_loose_vertex():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "loose_vertex")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "loose_vertex")
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         assert mesh["element_counts"]["vertices"] == 3
@@ -133,8 +133,8 @@ def test_loose_edge():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "loose_edge")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "loose_edge")
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         assert mesh["element_counts"]["vertices"] == 3
@@ -162,8 +162,8 @@ def test_edge_domain_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "edge_attr")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "edge_attr")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "EdgeFloat")
         assert attr["domain"] == "EDGE"
@@ -201,8 +201,8 @@ def test_multiple_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "multi_attr")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "multi_attr")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr_names = {attr["name"] for attr in data["meshes"][0]["attributes"]}
         assert "UVMap" in attr_names
@@ -236,8 +236,8 @@ def test_negative_int_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "neg_int")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "neg_int")
+        data, bin_data = common.load_result(tlyx_path)
 
         attr = common.find_attribute(data, "NegInt")
         assert attr["domain"] == "POINT"
@@ -259,10 +259,10 @@ def test_large_coordinates():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir, "large_coords", meters_per_unit=1.0
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         transform = data["objects"][0]["transform"]
         assert abs(transform[12] - 1e6) < 1.0
@@ -286,8 +286,8 @@ def test_empty_mesh_with_attributes_enabled():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "empty_attrs")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "empty_attrs")
+        data, bin_data = common.load_result(tlyx_path)
 
         assert data["meshes"][0]["attributes"] == []
     finally:
@@ -304,10 +304,10 @@ def test_no_mesh_objects_cancelled():
 
     tmpdir = common.tempdir()
     try:
-        json_path = tmpdir / "empty_scene.tlyx"
+        tlyx_path = tmpdir / "empty_scene.tlyx"
         # Blender에서 Operator가 ERROR를 report하면 bpy.ops.* 호출 시 RuntimeError가 발생한다.
         try:
-            bpy.ops.export_mesh.tlyx(filepath=str(json_path))
+            bpy.ops.export_mesh.tlyx(filepath=str(tlyx_path))
             raise AssertionError("Operator should have failed with no mesh objects")
         except RuntimeError as exc:
             assert "No mesh objects to export" in str(exc), f"Unexpected error: {exc}"
@@ -326,12 +326,12 @@ def test_validator_catches_corrupted_json():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "valid_cube")
+        tlyx_path = common.export_active_object(tmpdir, "valid_cube")
         # 검증 통과 확인
-        common.load_result(json_path, bin_path)
+        common.load_result(tlyx_path)
 
         # .tlyx 컨테이너에서 JSON을 분리해 손상시킨 후 다시 조립한다.
-        container_data = json_path.read_bytes()
+        container_data = tlyx_path.read_bytes()
         json_bytes, bin_data = read_tlyx_container(container_data)
         data = json.loads(json_bytes.decode("utf-8"))
         data["meshes"][0]["element_counts"]["vertices"] = 999

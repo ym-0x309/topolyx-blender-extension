@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_import_operator_basic():
@@ -22,10 +22,10 @@ def test_import_operator_basic():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "cube")
+        tlyx_path = common.export_active_object(tmpdir, "cube")
         common.clear_scene()
 
-        common.import_topolyx_file(json_path)
+        common.import_topolyx_file(tlyx_path)
 
         assert len(bpy.context.scene.objects) == 1
         obj = bpy.context.active_object
@@ -51,10 +51,10 @@ def test_import_without_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "cube")
+        tlyx_path = common.export_active_object(tmpdir, "cube")
         common.clear_scene()
 
-        common.import_topolyx_file(json_path, import_attributes=False)
+        common.import_topolyx_file(tlyx_path, import_attributes=False)
 
         obj = bpy.context.active_object
         assert obj.type == "MESH"

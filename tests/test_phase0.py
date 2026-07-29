@@ -19,7 +19,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def main():

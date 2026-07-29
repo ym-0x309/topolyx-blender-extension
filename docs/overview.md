@@ -1,8 +1,8 @@
-# Topolyx Blender Extension Overview
+# Topolyx Import/Export Overview
 
 ## Purpose
 
-`Topolyx Blender Extension` is a Blender Extension (add-on) for importing and exporting Blender mesh data to the `Topolyx` (Mesh Attribute & Topology Transfer Representation) format.
+`Topolyx Import/Export` is a Blender Extension (add-on) for importing and exporting Blender mesh data to the `Topolyx` (Mesh Attribute & Topology Transfer Representation) format.
 
 It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a single `.tlyx` file.
 
@@ -11,7 +11,7 @@ This extension implements Topolyx format version `v1.0.0`.
 ## File Structure
 
 ```text
-topolyx_blender_extension/
+topolyx_import_export/
 ├── blender_manifest.toml       # Extension metadata and Blender compatibility
 ├── __init__.py                 # Add-on registration/deregistration and menu wiring
 ├── topolyx_export_operator.py    # File save dialog and export Operator
@@ -74,7 +74,7 @@ topolyx_blender_extension/
 2. The Operator, inheriting from `ImportHelper`, opens the file open dialog.
 3. The user chooses a `.tlyx` file and presses Import.
 4. The Operator's `execute()` is called and invokes `topolyx_importer.import_topolyx()`.
-5. `topolyx_importer` reads the file pair, reconstructs Blender meshes, restores attributes, and creates objects in the active collection.
+5. `topolyx_importer` reads the `.tlyx` file, reconstructs Blender meshes, restores attributes, and creates objects in the active collection.
 6. Imported objects are selected and the last one is made active.
 
 ### 5. Deactivation
@@ -85,7 +85,7 @@ topolyx_blender_extension/
 ## Key Design Decisions
 
 - **Original mesh usage**: Exports the original `obj.data` data block, not the evaluated mesh.
-- **Coordinate system**: Exports to the Topolyx v1.0.0 fixed coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW). The only configurable coordinate parameter is `meters_per_unit`.
+- **Coordinate system**: Exports to the Topolyx v1.0.0 fixed coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW winding). The only configurable coordinate parameter is `meters_per_unit`. CW winding is not supported in v1.0.0.
 - **Object Transform conversion**: `object.transform` is the matrix that converts mesh local space coordinates to file world space coordinates, scaled by `meters_per_unit`.
 - **Left-handed coordinate system not supported**: Only the Topolyx v1.0.0 right-handed coordinate system is supported; importing a file with `handedness: LEFT` raises a validation error.
 - **Bidirectional conversion support**: `topolyx_coordinate.py` provides inverse coordinate conversion (identity rotation plus `meters_per_unit` scaling) for the importer.
@@ -98,8 +98,8 @@ topolyx_blender_extension/
   - Types not supported in v1.0.0 such as `STRING`, `INT16_2D`, `QUATERNION`, `FLOAT4X4` are filtered out with warnings.
   - Hidden/internal attributes starting with `.` and the topology-reserved name `position` are excluded by default. `sharp_edge/face` and `freestyle_edge/face` are exported as regular boolean attributes.
   - Users can specify additional names to skip in the `Excluded Attributes` comma-separated list.
-  - Each attribute now carries a `semantic` field (`POSITION`, `DIRECTION`, `NORMAL`, `ROTATION`, `TANGENT`, `COLOR`, `NONE`). Semantic assignment uses built-in name heuristics (`normal`→`NORMAL`, `tangent`→`TANGENT`, `Col`/`color`→`COLOR`) plus name prefixes such as `DIRECTION_my_attribute`. The optional `Remove Semantic Prefix` setting strips the prefix from the exported name.
-  - Attributes with coordinate-transform semantics (`POSITION`, `DIRECTION`, `ROTATION`, `TANGENT`) are converted to/from the target coordinate system during export/import.
+  - Each attribute now carries a `semantic` field (`POSITION`, `DIRECTION`, `NORMAL`, `ROTATION`, `TANGENT`, `COLOR`, `NONE`). Semantic assignment uses built-in name heuristics (`normal`→`NORMAL`, `tangent`→`TANGENT`, `Col`/`color`→`COLOR`) plus name prefixes such as `DIRECTION_my_attribute`. The optional `Remove Semantic Prefix` setting strips the prefix from the exported name. The `Auto Assign Semantics` toggle enables or disables the entire detection; when a detected semantic does not match the attribute's actual `(component_type, component_count)`, it falls back to `NONE` so the exported file stays valid.
+  - Attributes with coordinate-transform semantics (`POSITION`, `DIRECTION`, `NORMAL`, `ROTATION`, `TANGENT`) are converted to/from the target coordinate system during export/import.
 - **Multi-object export**:
   - Selected mesh objects can be exported at once.
   - Turning off `Selection Only` exports all mesh objects in the scene.
@@ -117,7 +117,7 @@ topolyx_blender_extension/
   - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_` and a warning is emitted.
   - Coordinate-transform semantics are inverted so that imported attributes align with Blender's coordinate system.
 - **Importer core**:
-  - `topolyx_importer.py` reads a Topolyx file pair and creates Blender mesh objects in the active layer collection.
+  - `topolyx_importer.py` reads a single Topolyx `.tlyx` file and creates Blender mesh objects in the active layer collection.
   - File-level mesh sharing is preserved across imported objects.
   - Imported objects are selected and the last one is made active.
 

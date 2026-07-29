@@ -426,6 +426,21 @@ def _validate_edges(
         seen.add(key)
 
 
+def _validate_bool_values(
+    desc: Dict[str, Any], bin_data: bytes, prefix: str
+) -> None:
+    """BOOL 데이터의 각 바이트가 0x00 또는 0x01인지 검증한다."""
+    offset = desc["byte_offset"]
+    length = desc["byte_length"]
+    for i in range(length):
+        value = bin_data[offset + i]
+        if value not in (0, 1):
+            _fail(
+                f"{prefix}: BOOL value must be 0x00 or 0x01, "
+                f"got 0x{value:02x} at byte {offset + i}"
+            )
+
+
 def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> None:
     """일반 attribute의 descriptor와 domain/element_count, semantic 일관성을 검증한다."""
     counts = mesh["element_counts"]
@@ -447,6 +462,11 @@ def _validate_attributes(mesh: Dict[str, Any], bin_data: bytes, prefix: str) -> 
             expected_count=None,
             expected_elements=expected_elements,
         )
+
+        if attr["data"]["component_type"] == "BOOL":
+            _validate_bool_values(
+                attr["data"], bin_data, prefix=f"{attr_prefix}('{name}').data"
+            )
 
         semantic = attr.get("semantic", "NONE")
         if semantic not in _VALID_SEMANTICS:
@@ -485,6 +505,12 @@ def _validate_object(obj: Dict[str, Any], mesh_count: int, obj_index: int) -> No
     transform = obj.get("transform")
     if not isinstance(transform, list) or len(transform) != 16:
         _fail(f"{prefix}: transform must be a list of 16 values, got {transform!r}")
+
+    for i, value in enumerate(transform):
+        if not isinstance(value, (int, float)) or not math.isfinite(value):
+            _fail(
+                f"{prefix}: transform[{i}] must be a finite number, got {value!r}"
+            )
 
     # object.transform의 선형(3x3) 부분이 비특이 행렬인지 검증한다.
     # column-major 직렬화: 인덱스 0,1,2 / 4,5,6 / 8,9,10이 열 벡터들.

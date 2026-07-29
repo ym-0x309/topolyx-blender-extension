@@ -1,4 +1,4 @@
-"""Topolyx file pair importer core."""
+"""Topolyx .tlyx importer core."""
 
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence
@@ -26,7 +26,7 @@ def import_topolyx(
     import_attributes: bool = True,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> List[str]:
-    """Import a Topolyx file pair into the current Blender scene.
+    """Import a Topolyx `.tlyx` file into the current Blender scene.
 
     Args:
         filepath: Path to the .tlyx file.
@@ -144,7 +144,6 @@ def _build_mesh(
         corner_vertices=corner_vertices,
         corner_edges=corner_edges,
         face_offsets=face_offsets,
-        winding=converter.winding,
     )
 
     if import_attributes:

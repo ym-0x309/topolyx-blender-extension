@@ -1,4 +1,4 @@
-"""Topolyx Blender Extension 테스트용 공통 헬퍼."""
+"""Topolyx Import/Export 테스트용 공통 헬퍼."""
 
 import json
 import struct
@@ -9,13 +9,13 @@ from typing import Sequence
 
 import bpy
 
-ADDON_MODULE = "topolyx_blender_extension"
+ADDON_MODULE = "topolyx_import_export"
 
 
 def reset_addon():
     """프로젝트 루트(익스텐션 디렉터리)에 있는 소스를 애드온으로 등록한다.
 
-    topolyx_blender_extension 패키지를 이름으로 임포트할 수 있도록
+    topolyx_import_export 패키지를 이름으로 임포트할 수 있도록
     프로젝트 루트의 상위 디렉터리를 sys.path에 추가한다.
     """
     project_root = Path(__file__).parent.parent
@@ -32,10 +32,10 @@ def reset_addon():
         if name == ADDON_MODULE or name.startswith(ADDON_MODULE + "."):
             del sys.modules[name]
 
-    import topolyx_blender_extension
+    import topolyx_import_export
 
-    topolyx_blender_extension.register()
-    return topolyx_blender_extension
+    topolyx_import_export.register()
+    return topolyx_import_export
 
 
 def clear_scene():
@@ -53,47 +53,43 @@ def select_only(objs: Sequence[bpy.types.Object]) -> None:
         bpy.context.view_layer.objects.active = objs[-1]
 
 
-def export_active_object(
-    tmpdir: Path, name: str, **operator_kwargs
-) -> tuple[Path, Path]:
-    """현재 active object를 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
+def export_active_object(tmpdir: Path, name: str, **operator_kwargs) -> Path:
+    """현재 active object를 익스포트하고 .tlyx 파일 경로를 반환한다."""
     obj = bpy.context.active_object
     if obj is not None:
         obj.select_set(True)
     tlyx_path = tmpdir / f"{name}.tlyx"
     result = bpy.ops.export_mesh.tlyx(filepath=str(tlyx_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    return tlyx_path, tlyx_path
+    return tlyx_path
 
 
-def export_selected(
-    tmpdir: Path, name: str, **operator_kwargs
-) -> tuple[Path, Path]:
-    """현재 선택된 오브젝트들을 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
+def export_selected(tmpdir: Path, name: str, **operator_kwargs) -> Path:
+    """현재 선택된 오브젝트들을 익스포트하고 .tlyx 파일 경로를 반환한다."""
     tlyx_path = tmpdir / f"{name}.tlyx"
     result = bpy.ops.export_mesh.tlyx(
         filepath=str(tlyx_path), use_selection=True, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    return tlyx_path, tlyx_path
+    return tlyx_path
 
 
-def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]:
-    """씬의 모든 메시 오브젝트를 익스포트하고 .tlyx 경로를 두 번 반환한다. (하위 호환)"""
+def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> Path:
+    """씬의 모든 메시 오브젝트를 익스포트하고 .tlyx 파일 경로를 반환한다."""
     tlyx_path = tmpdir / f"{name}.tlyx"
     result = bpy.ops.export_mesh.tlyx(
         filepath=str(tlyx_path), use_selection=False, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
-    return tlyx_path, tlyx_path
+    return tlyx_path
 
 
-def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]:
+def load_result(tlyx_path: Path) -> tuple[dict, bytes]:
     """.tlyx 파일에서 JSON 메타데이터와 binary 데이터를 분리해 검증 후 반환한다."""
-    from topolyx_blender_extension.topolyx_binary import read_tlyx_container
-    from topolyx_blender_extension import topolyx_validator
+    from topolyx_import_export.topolyx_binary import read_tlyx_container
+    from topolyx_import_export import topolyx_validator
 
-    container_data = json_path.read_bytes()
+    container_data = tlyx_path.read_bytes()
     json_bytes, bin_data = read_tlyx_container(container_data)
     data = json.loads(json_bytes.decode("utf-8"))
 
@@ -166,7 +162,7 @@ def import_topolyx_file(tlyx_path: Path, **operator_kwargs) -> None:
     assert result == {"FINISHED"}, f"Import operator returned {result}"
 
 
-def import_topology_only(tlyx_path: Path, _bin_path: Path) -> bpy.types.Mesh:
+def import_topology_only(tlyx_path: Path) -> bpy.types.Mesh:
     """Topolyx .tlyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 
     Attribute 복원은 포함하지 않으며, Phase 8 attribute import 테스트에서
@@ -174,10 +170,10 @@ def import_topology_only(tlyx_path: Path, _bin_path: Path) -> bpy.types.Mesh:
     """
     from mathutils import Vector
 
-    from topolyx_blender_extension.topolyx_binary import BinaryBufferReader
-    from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
-    from topolyx_blender_extension.topolyx_mesh_import import build_blender_mesh
-    from topolyx_blender_extension.topolyx_reader import read_topolyx
+    from topolyx_import_export.topolyx_binary import BinaryBufferReader
+    from topolyx_import_export.topolyx_coordinate import CoordinateConverter
+    from topolyx_import_export.topolyx_mesh_import import build_blender_mesh
+    from topolyx_import_export.topolyx_reader import read_topolyx
 
     topolyx_file, bin_data = read_topolyx(tlyx_path)
     mesh_data = topolyx_file.meshes[0]
@@ -233,5 +229,4 @@ def import_topology_only(tlyx_path: Path, _bin_path: Path) -> bpy.types.Mesh:
         corner_vertices,
         corner_edges,
         face_offsets,
-        converter.winding,
     )

@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_default_cube():
@@ -23,10 +23,10 @@ def test_default_cube():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir, "cube", export_attributes=False
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         counts = mesh["element_counts"]
@@ -61,13 +61,13 @@ def test_transformed_cube():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "transformed_cube",
             meters_per_unit=1.0,
             export_attributes=False,
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         transform = data["objects"][0]["transform"]
         assert len(transform) == 16
@@ -107,10 +107,10 @@ def test_empty_mesh():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir, "empty", export_attributes=False
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         mesh = data["meshes"][0]
         counts = mesh["element_counts"]
@@ -126,7 +126,7 @@ def test_empty_mesh():
 
 def test_ensure_tlyx_ext():
     """execute에서 사용하는 확장자 보정 로직을 검증한다."""
-    from topolyx_blender_extension.topolyx_export_operator import _ensure_tlyx_ext
+    from topolyx_import_export.topolyx_export_operator import _ensure_tlyx_ext
 
     assert _ensure_tlyx_ext("model") == "model.tlyx"
     assert _ensure_tlyx_ext("model.json") == "model.tlyx"

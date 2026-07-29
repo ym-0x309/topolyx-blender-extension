@@ -13,14 +13,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from topolyx_blender_extension.topolyx_attribute import topolyx_component_type_to_blender
-from topolyx_blender_extension.topolyx_attribute_import import (
+from topolyx_import_export.topolyx_attribute import topolyx_component_type_to_blender
+from topolyx_import_export.topolyx_attribute_import import (
     _read_u32_as_i32,
     apply_attributes,
 )
-from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
-from topolyx_blender_extension.topolyx_reader import read_topolyx
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from topolyx_import_export.topolyx_reader import read_topolyx
+from topolyx_import_export.tests import common
 
 
 _TYPE_COMPONENT_COUNT = {
@@ -81,9 +81,9 @@ def test_point_float_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "point_float")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "point_float")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -117,9 +117,9 @@ def test_edge_int_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "edge_int")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "edge_int")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -153,9 +153,9 @@ def test_face_float_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "face_float")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "face_float")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -192,9 +192,9 @@ def test_corner_float_color_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "corner_color")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "corner_color")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -227,9 +227,9 @@ def test_uvmap_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "uvmap_cube")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "uvmap_cube")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -266,9 +266,9 @@ def test_int32_2d_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "int32_2d")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "int32_2d")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -302,9 +302,9 @@ def test_face_bool_attribute():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "face_bool")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "face_bool")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -345,9 +345,9 @@ def test_multiple_attributes():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "multi_attr")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "multi_attr")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -385,9 +385,9 @@ def test_reserved_attribute_name_renamed():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "reserved_name")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "reserved_name")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
 
         # 파일 내 attribute 이름을 예약어 "position"으로 강제 변경하여 collision 테스트
         reserved_attr = next(
@@ -456,9 +456,9 @@ def test_byte_color_roundtrip():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "byte_color_rt")
-        imported_mesh = common.import_topology_only(json_path, bin_path)
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "byte_color_rt")
+        imported_mesh = common.import_topology_only(tlyx_path)
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
         warnings = apply_attributes(
             imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
@@ -481,8 +481,8 @@ def test_byte_color_roundtrip():
 
 def test_i8_attribute_import():
     """I8x1 attribute가 import 시 INT로 부호 확장되어 저장되는지 확인한다."""
-    from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
-    from topolyx_blender_extension.topolyx_types import Attribute, DataDescriptor
+    from topolyx_import_export.topolyx_binary import BinaryBuffer, BinaryBufferReader
+    from topolyx_import_export.topolyx_types import Attribute, DataDescriptor
 
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))

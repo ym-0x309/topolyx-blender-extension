@@ -27,3 +27,6 @@
 - 한국어로 코딩 주석과 설명을 작성할 때, 유니코드 토큰 깨짐이나 글자 바꿈 현상이 발생하지 않도록 각 문장을 명확한 완성형 한글 UTF-8 텍스트로 결합하여 출력할 것
 
 - blender extension 개발 중 blender에서 백그라운드 테스트를 돌릴 때 발생활 수 있는 RuntimeError 중 하나는 이미 `~/.config/blender/5.1/extensions/user_default/`에 이미 설치된 애드온과의 충돌로 인한 것일 수 있으며, 참고할 것
+
+- blender extension 개발 중 `blender -b -P tests/run_all.py` 명령어로 테스트가 실행되지 않으면, `/home/ymh/.local/bin/blender -b -P tests/run_all.py` 명령어로 다시 시도해 볼 것
+- 

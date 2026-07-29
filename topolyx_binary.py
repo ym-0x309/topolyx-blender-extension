@@ -99,25 +99,34 @@ class BinaryBufferReader:
             )
 
     def read_f32(self, offset: int, count: int) -> array.array:
-        """offset 위치부터 count개의 F32 값을 읽어 array.array('f')로 반환한다."""
+        """offset 위치부터 count개의 F32 값을 읽어 array.array('f')로 반환한다.
+
+        명세에 따라 little-endian으로 해석한다.
+        """
         if count == 0:
             return array.array("f")
         self._check_bounds(offset, count * 4)
-        return array.array("f", self._data[offset : offset + count * 4])
+        return array.array("f", struct.unpack_from(f"<{count}f", self._data, offset))
 
     def read_i32(self, offset: int, count: int) -> array.array:
-        """offset 위치부터 count개의 I32 값을 읽어 array.array('i')로 반환한다."""
+        """offset 위치부터 count개의 I32 값을 읽어 array.array('i')로 반환한다.
+
+        명세에 따라 little-endian으로 해석한다.
+        """
         if count == 0:
             return array.array("i")
         self._check_bounds(offset, count * 4)
-        return array.array("i", self._data[offset : offset + count * 4])
+        return array.array("i", struct.unpack_from(f"<{count}i", self._data, offset))
 
     def read_u32(self, offset: int, count: int) -> array.array:
-        """offset 위치부터 count개의 U32 값을 읽어 array.array('I')로 반환한다."""
+        """offset 위치부터 count개의 U32 값을 읽어 array.array('I')로 반환한다.
+
+        명세에 따라 little-endian으로 해석한다.
+        """
         if count == 0:
             return array.array("I")
         self._check_bounds(offset, count * 4)
-        return array.array("I", self._data[offset : offset + count * 4])
+        return array.array("I", struct.unpack_from(f"<{count}I", self._data, offset))
 
     def read_i8(self, offset: int, count: int) -> array.array:
         """offset 위치부터 count개의 I8 값을 읽어 array.array('b')로 반환한다."""

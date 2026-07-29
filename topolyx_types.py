@@ -10,7 +10,7 @@ class DataDescriptor:
 
     byte_offset: int
     byte_length: int
-    component_type: str  # "F32" | "I32" | "U32" | "BOOL"
+    component_type: str  # "F32" | "I32" | "I8" | "U32" | "U8" | "BOOL"
     component_count: int
     element_count: int
 

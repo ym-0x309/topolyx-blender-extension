@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Vector
 
-from topolyx_blender_extension.topolyx_importer import import_topolyx
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.topolyx_importer import import_topolyx
+from topolyx_import_export.tests import common
 
 
 def _get_imported_objects():
@@ -36,10 +36,10 @@ def test_import_default_cube_roundtrip():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "cube_roundtrip")
+        tlyx_path = common.export_active_object(tmpdir, "cube_roundtrip")
         common.clear_scene()
 
-        warnings = import_topolyx(json_path)
+        warnings = import_topolyx(tlyx_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -75,10 +75,10 @@ def test_import_multi_object():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "two_objects")
+        tlyx_path = common.export_selected(tmpdir, "two_objects")
         common.clear_scene()
 
-        warnings = import_topolyx(json_path)
+        warnings = import_topolyx(tlyx_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -107,10 +107,10 @@ def test_import_shared_mesh():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "linked_dup")
+        tlyx_path = common.export_selected(tmpdir, "linked_dup")
         common.clear_scene()
 
-        warnings = import_topolyx(json_path)
+        warnings = import_topolyx(tlyx_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -141,10 +141,10 @@ def test_import_empty_mesh():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "empty_import")
+        tlyx_path = common.export_active_object(tmpdir, "empty_import")
         common.clear_scene()
 
-        warnings = import_topolyx(json_path)
+        warnings = import_topolyx(tlyx_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -173,10 +173,10 @@ def test_import_attributes_disabled():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "no_attrs_import")
+        tlyx_path = common.export_active_object(tmpdir, "no_attrs_import")
         common.clear_scene()
 
-        warnings = import_topolyx(json_path, import_attributes=False)
+        warnings = import_topolyx(tlyx_path, import_attributes=False)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_obj = _get_imported_objects()[0]
@@ -201,24 +201,24 @@ def test_import_reserved_attribute_name_renamed():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "reserved_import")
+        tlyx_path = common.export_active_object(tmpdir, "reserved_import")
 
         # .tlyx 컨테이너에서 JSON을 분리해 예약어로 수정한 후 다시 조립한다.
-        from topolyx_blender_extension.topolyx_binary import (
+        from topolyx_import_export.topolyx_binary import (
             read_tlyx_container,
             write_tlyx_container,
         )
 
-        container_data = json_path.read_bytes()
+        container_data = tlyx_path.read_bytes()
         json_bytes, bin_data = read_tlyx_container(container_data)
         data = json.loads(json_bytes.decode("utf-8"))
         data["meshes"][0]["attributes"][0]["name"] = "position"
         modified_json_bytes = json.dumps(data, indent=4, ensure_ascii=False).encode("utf-8")
         modified_container = write_tlyx_container(modified_json_bytes, bin_data)
-        json_path.write_bytes(modified_container)
+        tlyx_path.write_bytes(modified_container)
 
         common.clear_scene()
-        warnings = import_topolyx(json_path)
+        warnings = import_topolyx(tlyx_path)
         assert any("position" in w for w in warnings), f"Expected warning about reserved name, got {warnings}"
 
         imported_obj = _get_imported_objects()[0]
@@ -243,10 +243,10 @@ def test_import_selects_objects():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_selected(tmpdir, "selection_test")
+        tlyx_path = common.export_selected(tmpdir, "selection_test")
         common.clear_scene()
 
-        import_topolyx(json_path)
+        import_topolyx(tlyx_path)
 
         imported_objs = _get_imported_objects()
         assert all(obj.select_get() for obj in imported_objs)

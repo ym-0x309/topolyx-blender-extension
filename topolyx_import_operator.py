@@ -9,7 +9,7 @@ from . import topolyx_importer
 
 
 class TOPOLYX_OT_import_mesh(Operator, ImportHelper):
-    """Import a Topolyx file pair into the current Blender scene."""
+    """Import a Topolyx `.tlyx` file into the current Blender scene."""
 
     bl_idname = "import_mesh.tlyx"
     bl_label = "Import Topolyx"

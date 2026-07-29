@@ -13,16 +13,16 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-from topolyx_blender_extension.topolyx_attribute import topolyx_component_type_to_blender
-from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
-from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
-from topolyx_blender_extension.topolyx_reader import read_topolyx
-from topolyx_blender_extension.topolyx_types import CoordinateSystem
-from topolyx_blender_extension.topolyx_utils import (
+from topolyx_import_export.topolyx_attribute import topolyx_component_type_to_blender
+from topolyx_import_export.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from topolyx_import_export.topolyx_coordinate import CoordinateConverter
+from topolyx_import_export.topolyx_reader import read_topolyx
+from topolyx_import_export.topolyx_types import CoordinateSystem
+from topolyx_import_export.topolyx_utils import (
     column_major_list_to_matrix,
     matrix_to_column_major_list,
 )
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 
 def test_inverse_coordinate_conversion():
@@ -113,8 +113,8 @@ def test_read_topolyx():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "reader_cube")
-        topolyx_file, bin_data = read_topolyx(json_path)
+        tlyx_path = common.export_active_object(tmpdir, "reader_cube")
+        topolyx_file, bin_data = read_topolyx(tlyx_path)
 
         assert topolyx_file.header.format == "Topolyx"
         assert topolyx_file.header.version == "1.0"
@@ -231,12 +231,12 @@ def test_custom_meters_per_unit_export():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "custom_cs",
             meters_per_unit=2.0,
         )
-        data, _ = common.load_result(json_path, bin_path)
+        data, _ = common.load_result(tlyx_path)
 
         cs = data["coordinate_system"]
         assert cs["up_axis"] == "+Z"

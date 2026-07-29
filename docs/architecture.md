@@ -1,4 +1,4 @@
-# Topolyx Blender Extension Architecture
+# Topolyx Import/Export Architecture
 
 각 파일별 public API 시그니처와 역할을 정리한다. 세부 구현은 포함하지 않는다.
 
@@ -67,6 +67,7 @@ class TOPOLYX_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `exclude_hidden_attributes` | `BoolProperty` | 낶부 Outputplus/internal attribute 제외 여부 |
 | `excluded_attribute_names` | `StringProperty` | 추가 제외할 attribute 이름 목록 |
 | `remove_semantic_prefix` | `BoolProperty` | semantic prefix를 attribute 이름에서 제거 |
+| `auto_assign_semantics` | `BoolProperty` | 표준 이름/접두사에서 semantic 자동 할당 여부 |
 
 #### 메서드
 
@@ -103,6 +104,7 @@ def write_topolyx(
     exclude_hidden_attributes: bool = True,
     excluded_attribute_names: str = "",
     remove_semantic_prefix: bool = False,
+    auto_assign_semantics: bool = True,
 ) -> List[str]
 ```
 
@@ -114,6 +116,7 @@ def write_topolyx(
   - `export_attributes`: attribute 낳볼내기 여부
   - `exclude_hidden_attributes`: 낮부 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
+  - `auto_assign_semantics`: 표준 이름/접두사에서 semantic을 자동 할당할지 여부
 - **동작**:
   - `.tlyx` 단일 파일을 생성한다.
   - `objects`를 순회하며 메시 데이터 블록을 기준으로 중복을 제거한다.
@@ -297,12 +300,11 @@ def build_blender_mesh(
     corner_vertices: Sequence[int],
     corner_edges: Sequence[int],
     face_offsets: Sequence[int],
-    winding: str = "CCW",
 ) -> bpy.types.Mesh
 ```
 
 - `from_pydata`를 사용하여 topology를 복원한다.
-- `winding`이 `"CW"`이면 각 face의 corner 순서와 `corner_edges`를 함께 reverse하여 Blender의 CCW 기준에 맞춘다.
+- Topolyx 1.0.0은 `winding=CCW`만 지원하므로, 별도의 reverse 로직은 없다.
 - 생성 후 `mesh.loops[i].edge_index`가 `corner_edges[i]`와 일치하도록 강제한다.
 - duplicate edge가 있으면 `ValueError`를 발생시킨다.
 
@@ -327,6 +329,7 @@ def extract_attributes(
     exclude_hidden: bool = True,
     excluded_names: Optional[Set[str]] = None,
     remove_semantic_prefix: bool = False,
+    auto_assign_semantics: bool = True,
 ) -> Tuple[List[AttributeArrays], List[str]]
 ```
 
@@ -336,7 +339,8 @@ def extract_attributes(
 - `BYTE_COLOR`는 `U8×4`로 저장하고 `semantic=COLOR`를 부여한다.
 - `INT8`은 `I8×1`로 저장한다.
 - `BOOLEAN`은 `BOOL×1`로 저장한다.
-- attribute 이름이나 data_type에 따라 `semantic`이 자동 할당되며, `DIRECTION_`, `POSITION_` 등의 prefix도 인식한다.
+- `auto_assign_semantics=True`일 때, attribute 이름이나 data_type에 따라 `semantic`이 자동 할당되며, `DIRECTION_`, `POSITION_` 등의 prefix도 인식한다.
+- 자동 할당된 semantic이 명세의 `(component_type, component_count)` 제약과 맞지 않으면 `NONE`으로 fallback한다.
 
 ```python
 def topolyx_component_type_to_blender(
@@ -409,19 +413,20 @@ def from_coordinate_system(cls, cs: CoordinateSystem) -> CoordinateConverter
 @property
 def winding(self) -> str
 ```
-- target 좌표계의 winding(`"CW"` 또는 `"CCW"`)을 반환한다.
+
+- target 좌표계의 winding을 반환한다. Topolyx 1.0.0에서는 항상 `"CCW"`이다.
 
 ```python
 def convert_position(self, v: Vector) -> Vector
 ```
 - Blender local/world position을 target local/world position으로 변환한다.
 - `meters_per_unit`에 따라 위치를 스케일한다.
-
 ```python
 def convert_matrix(self, m: Matrix) -> Matrix
 ```
+
 - Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다.
-- ``M_target = S^-1 @ M @ M_blender @ M^-1 @ S``를 적용한다. (`S`는 `meters_per_unit` uniform scale)
+- ``M_target = S^-1 @ M @ S``를 적용한다. (`S`는 `meters_per_unit` uniform scale)
 
 ```python
 def inverse_convert_position(self, v: Vector) -> Vector
@@ -431,8 +436,9 @@ def inverse_convert_position(self, v: Vector) -> Vector
 ```python
 def inverse_convert_matrix(self, m: Matrix) -> Matrix
 ```
+
 - target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다.
-- ``M_blender = S @ M^-1 @ M_target @ M @ S^-1``를 적용한다.
+- ``M_blender = S @ M @ S^-1``를 적용한다.
 
 ```python
 def convert_rotation(self, q: Quaternion) -> Quaternion
@@ -611,7 +617,7 @@ def validate_topolyx_file(filepath: Path) -> None
 ```python
 ADDON_MODULE: str
 ```
-- 애드온 모듈 이름 `"topolyx_blender_extension"`.
+- 애드온 모듈 이름 `"topolyx_import_export"`.
 
 ```python
 def reset_addon() -> module
@@ -629,24 +635,24 @@ def select_only(objs: Sequence[bpy.types.Object]) -> None
 - 지정한 오브젝트들만 선택하고 active를 마지막으로 설정한다.
 
 ```python
-def export_active_object(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+def export_active_object(tmpdir: Path, name: str, **operator_kwargs) -> Path
 ```
-- active object를 익스포트하고 JSON/bin 경로를 반환한다.
+- active object를 익스포트하고 `.tlyx` 파일 경로를 반환한다.
 
 ```python
-def export_selected(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+def export_selected(tmpdir: Path, name: str, **operator_kwargs) -> Path
 ```
-- 선택된 오브젝트들을 익스포트하고 JSON/bin 경로를 반환한다.
+- 선택된 오브젝트들을 익스포트하고 `.tlyx` 파일 경로를 반환한다.
 
 ```python
-def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]
+def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> Path
 ```
-- 씬의 모든 메시 오브젝트를 익스포트하고 JSON/bin 경로를 반환한다.
+- 씬의 모든 메시 오브젝트를 익스포트하고 `.tlyx` 파일 경로를 반환한다.
 
 ```python
-def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]
+def load_result(tlyx_path: Path) -> tuple[dict, bytes]
 ```
-- JSON과 binary를 읽어 `validate_topolyx`로 검증 후 반환한다.
+- `.tlyx` 파일을 읽어 JSON과 binary를 분리한 후 `validate_topolyx`로 검증 후 반환한다.
 
 ```python
 def find_attribute(data: dict, name: str, mesh_index: int = 0) -> dict
@@ -684,14 +690,14 @@ def tempdir() -> Path
 - 테스트용 임시 디렉터리를 Path 객체로 반환한다.
 
 ```python
-def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh
+def import_topology_only(tlyx_path: Path) -> bpy.types.Mesh
 ```
-- Topolyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+- Topolyx `.tlyx` 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 - Phase 7/8 테스트에서 mesh 생성 로직을 공유하기 위해 사용한다.
 
 ## `tests/run_all.py`
 
-- **역할**: Blender 백그라운드 모드에서 Phase 0~8 테스트를 순차 실행하는 통합 러너.
+- **역할**: Blender 백그라운드 모드에서 Phase 0~9 테스트를 순차 실행하는 통합 러너.
 
 ### Public API
 

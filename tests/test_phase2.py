@@ -14,8 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Matrix, Vector
 
-from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.topolyx_coordinate import CoordinateConverter
+from topolyx_import_export.tests import common
 
 
 def test_default_cube_topolyx_default():
@@ -25,13 +25,13 @@ def test_default_cube_topolyx_default():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "cube_topolyx_default",
             meters_per_unit=1.0,
             export_attributes=False,
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         cs = data["coordinate_system"]
         assert cs == {
@@ -81,13 +81,13 @@ def test_transformed_cube_topolyx_default():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "transformed_cube_topolyx_default",
             meters_per_unit=1.0,
             export_attributes=False,
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         transform = data["objects"][0]["transform"]
         assert len(transform) == 16
@@ -125,13 +125,13 @@ def test_blender_preset_unchanged():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "cube_blender",
             meters_per_unit=1.0,
             export_attributes=False,
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         cs = data["coordinate_system"]
         assert cs["forward_axis"] == "+Y"
@@ -163,13 +163,13 @@ def test_face_offsets_order():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(
+        tlyx_path = common.export_active_object(
             tmpdir,
             "ordered_faces",
             meters_per_unit=1.0,
             export_attributes=False,
         )
-        data, bin_data = common.load_result(json_path, bin_path)
+        data, bin_data = common.load_result(tlyx_path)
 
         topo = data["meshes"][0]["topology"]
         face_offsets = struct.unpack_from(

@@ -1,6 +1,6 @@
-# Topolyx Blender Extension Testing
+# Topolyx Import/Export Testing
 
-본 문서는 Topolyx Blender Extension의 테스트 실행 방법을 설명한다.
+본 문서는 Topolyx Import/Export의 테스트 실행 방법을 설명한다.
 
 ## 테스트 구조
 
@@ -60,7 +60,7 @@ blender -b -P tests/run_all.py
 GitHub Actions 등에서 사용할 수 있는 간단한 예시이다. Blender를 CI 환경에 설치하는 방법은 프로젝트 외부 의존성이 크므로, 여기서는 Blender가 이미 설치되어 있다고 가정한다.
 
 ```yaml
-name: Topolyx Blender Extension Tests
+name: Topolyx Import/Export Tests
 
 on: [push, pull_request]
 
@@ -69,7 +69,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Topolyx Blender Extension tests
+      - name: Run Topolyx Import/Export tests
         run: blender -b -P tests/run_all.py
 ```
 
@@ -78,7 +78,7 @@ jobs:
 새로운 테스트를 추가할 때는 `tests/common.py`의 헬퍼 함수를 사용하는 것을 권장한다.
 
 ```python
-from topolyx_blender_extension.tests import common
+from topolyx_import_export.tests import common
 
 def test_my_feature():
     common.clear_scene()
@@ -86,8 +86,8 @@ def test_my_feature():
 
     tmpdir = common.tempdir()
     try:
-        json_path, bin_path = common.export_active_object(tmpdir, "my_feature")
-        data, bin_data = common.load_result(json_path, bin_path)
+        tlyx_path = common.export_active_object(tmpdir, "my_feature")
+        data, bin_data = common.load_result(tlyx_path)
         # 추가 검증
     finally:
         import shutil
@@ -96,4 +96,4 @@ def test_my_feature():
 
 ## 주의 사항
 
-- 동일한 애드온 ID(`topolyx_blender_extension`)가 `~/.config/blender/5.1/extensions/user_default/`에 이미 설치되어 있으면, 테스트가 등록 충돌로 실패할 수 있다. 이 경우 Blender 환경 설정에서 해당 애드온을 비활성화하거나 제거한다.
+- 동일한 애드온 ID(`topolyx_import_export`)가 `~/.config/blender/5.1/extensions/user_default/`에 이미 설치되어 있으면, 테스트가 등록 충돌로 실패할 수 있다. 이 경우 Blender 환경 설정에서 해당 애드온을 비활성화하거나 제거한다.

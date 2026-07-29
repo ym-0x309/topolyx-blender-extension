@@ -4,6 +4,7 @@ Topolyx v1.0.0은 좌표계를 +Z up, +Y forward, right-handed, CCW winding으�
 따라서 본 변환기는 meters_per_unit에 따른 위치/행렬 스케일만 수행한다.
 """
 
+import math
 from typing import Union
 
 from mathutils import Matrix, Quaternion, Vector
@@ -21,9 +22,17 @@ class CoordinateConverter:
     def __init__(self, preset_or_cs: Union[str, CoordinateSystem]) -> None:
         if isinstance(preset_or_cs, CoordinateSystem):
             self.target = preset_or_cs
-        else:
-            # preset 문자열은 무시되고 고정 좌표계를 사용한다.
+        elif isinstance(preset_or_cs, str):
+            # Blender와 Topolyx v1.0.0 고정 좌표계는 동일하다.
+            if preset_or_cs not in {"BLENDER", "TOPOLYX_DEFAULT"}:
+                raise ValueError(
+                    f"Unknown CoordinateConverter preset: {preset_or_cs!r}"
+                )
             self.target = CoordinateSystem()
+        else:
+            raise TypeError(
+                f"CoordinateConverter expects CoordinateSystem or str, got {type(preset_or_cs)}"
+            )
         self._validate_target()
         self._unit_scale = float(self.target.meters_per_unit)
 
@@ -49,9 +58,13 @@ class CoordinateConverter:
             raise ValueError(
                 f"Topolyx v1.0.0 requires CCW winding, got {cs.winding!r}"
             )
-        if not isinstance(cs.meters_per_unit, (int, float)) or cs.meters_per_unit <= 0:
+        if (
+            not isinstance(cs.meters_per_unit, (int, float))
+            or not math.isfinite(cs.meters_per_unit)
+            or cs.meters_per_unit <= 0
+        ):
             raise ValueError(
-                f"meters_per_unit must be a positive number, got {cs.meters_per_unit!r}"
+                f"meters_per_unit must be a positive finite number, got {cs.meters_per_unit!r}"
             )
 
     @property
@@ -79,7 +92,11 @@ class CoordinateConverter:
         return n
 
     def convert_matrix(self, m: Matrix) -> Matrix:
-        """Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다."""
+        """Blender 4x4 world matrix를 target 4x4 world matrix로 변환한다.
+
+        회전/방향 축은 Blender와 Topolyx 1.0.0이 동일하므로, meters_per_unit에 따른
+        uniform scale만 적용한다: ``M_target = S^-1 @ M @ S``.
+        """
         S_inv = self._scale_matrix(invert=True)
         S = self._scale_matrix()
         return S_inv @ m @ S
@@ -109,7 +126,11 @@ class CoordinateConverter:
         return n
 
     def inverse_convert_matrix(self, m: Matrix) -> Matrix:
-        """target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다."""
+        """target 4x4 world matrix를 Blender 4x4 world matrix로 변환한다.
+
+        회전/방향 축은 Blender와 Topolyx 1.0.0이 동일하므로, meters_per_unit에 따른
+        uniform scale만 적용한다: ``M_blender = S @ M @ S^-1``.
+        """
         S = self._scale_matrix()
         S_inv = self._scale_matrix(invert=True)
         return S @ m @ S_inv

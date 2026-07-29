@@ -1,4 +1,4 @@
-"""MATTR topology 배열로 Blender Mesh 데이터 블록을 복원한다."""
+"""Topolyx topology 배열로 Blender Mesh 데이터 블록을 복원한다."""
 
 from typing import List, Sequence
 
@@ -14,7 +14,7 @@ def build_blender_mesh(
     face_offsets: Sequence[int],
     winding: str = "CCW",
 ) -> bpy.types.Mesh:
-    """MATTR topology 배열로 Blender Mesh 데이터 블록을 생성한다.
+    """Topolyx topology 배열로 Blender Mesh 데이터 블록을 생성한다.
 
     Args:
         name: 생성할 mesh 데이터 블록 이름.

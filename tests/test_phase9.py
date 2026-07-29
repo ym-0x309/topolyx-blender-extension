@@ -1,7 +1,7 @@
-"""Phase 9 tests — MATTR importer core validation.
+"""Phase 9 tests — Topolyx importer core validation.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase9.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase9.py
 """
 
 import sys
@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Vector
 
-from blender_mattr_exporter.mattr_importer import import_mattr
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.topolyx_importer import import_topolyx
+from blender_topolyx_exporter.tests import common
 
 
 def _get_imported_objects():
@@ -37,7 +37,7 @@ def test_import_default_cube_roundtrip():
         json_path, bin_path = common.export_active_object(tmpdir, "cube_roundtrip")
         common.clear_scene()
 
-        warnings = import_mattr(json_path)
+        warnings = import_topolyx(json_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -76,7 +76,7 @@ def test_import_multi_object():
         json_path, bin_path = common.export_selected(tmpdir, "two_objects")
         common.clear_scene()
 
-        warnings = import_mattr(json_path)
+        warnings = import_topolyx(json_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -108,7 +108,7 @@ def test_import_shared_mesh():
         json_path, bin_path = common.export_selected(tmpdir, "linked_dup")
         common.clear_scene()
 
-        warnings = import_mattr(json_path)
+        warnings = import_topolyx(json_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -142,7 +142,7 @@ def test_import_empty_mesh():
         json_path, bin_path = common.export_active_object(tmpdir, "empty_import")
         common.clear_scene()
 
-        warnings = import_mattr(json_path)
+        warnings = import_topolyx(json_path)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_objs = _get_imported_objects()
@@ -174,7 +174,7 @@ def test_import_attributes_disabled():
         json_path, bin_path = common.export_active_object(tmpdir, "no_attrs_import")
         common.clear_scene()
 
-        warnings = import_mattr(json_path, import_attributes=False)
+        warnings = import_topolyx(json_path, import_attributes=False)
         assert not warnings, f"Unexpected warnings: {warnings}"
 
         imported_obj = _get_imported_objects()[0]
@@ -211,7 +211,7 @@ def test_import_reserved_attribute_name_renamed():
             json.dump(data, f, indent=4)
 
         common.clear_scene()
-        warnings = import_mattr(json_path)
+        warnings = import_topolyx(json_path)
         assert any("position" in w for w in warnings), f"Expected warning about reserved name, got {warnings}"
 
         imported_obj = _get_imported_objects()[0]
@@ -239,7 +239,7 @@ def test_import_selects_objects():
         json_path, bin_path = common.export_selected(tmpdir, "selection_test")
         common.clear_scene()
 
-        import_mattr(json_path)
+        import_topolyx(json_path)
 
         imported_objs = _get_imported_objects()
         assert all(obj.select_get() for obj in imported_objs)

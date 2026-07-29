@@ -1,33 +1,33 @@
-# MATTR Exporter Overview
+# Topolyx Exporter Overview
 
 ## Purpose
 
-`MATTR Exporter` is a Blender Extension (add-on) for exporting Blender mesh data to the `MATTR` (Mesh Attribute & Topology Transfer Representation) format.
+`Topolyx Exporter` is a Blender Extension (add-on) for exporting Blender mesh data to the `Topolyx` (Mesh Attribute & Topology Transfer Representation) format.
 
-It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.mattr.json` + `.mattr.bin` file pair.
+It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.tlyx.json` + `.tlyx.bin` file pair.
 
-This extension implements MATTR format version `v0.3.0`.
+This extension implements Topolyx format version `v0.3.0`.
 
 ## File Structure
 
 ```text
-blender_mattr_exporter/
+blender_topolyx_exporter/
 ├── blender_manifest.toml       # Extension metadata and Blender compatibility
 ├── __init__.py                 # Add-on registration/deregistration and menu wiring
-├── mattr_export_operator.py    # File save dialog and export Operator
-├── mattr_writer.py             # JSON + binary assembly entry point
-├── mattr_reader.py             # JSON + binary load and validation entry point
-├── mattr_types.py              # MATTR format data model
-├── mattr_mesh.py               # Blender Mesh -> MATTR topology extraction
-├── mattr_mesh_import.py        # MATTR topology -> Blender Mesh reconstruction
-├── mattr_attribute.py          # Blender Mesh Attribute -> MATTR attribute conversion
-├── mattr_attribute_import.py   # MATTR attribute -> Blender Mesh Attribute restoration
-├── mattr_binary.py             # 4-byte aligned binary buffer builder/reader
-├── mattr_coordinate.py         # Bidirectional coordinate system conversion
-├── mattr_utils.py              # Shared utilities (matrix serialization, etc.)
-├── mattr_validator.py          # Output file validation
-├── mattr_importer.py           # End-to-end import entry point
-├── mattr_import_operator.py    # File open dialog and import Operator
+├── topolyx_export_operator.py    # File save dialog and export Operator
+├── topolyx_writer.py             # JSON + binary assembly entry point
+├── topolyx_reader.py             # JSON + binary load and validation entry point
+├── topolyx_types.py              # Topolyx format data model
+├── topolyx_mesh.py               # Blender Mesh -> Topolyx topology extraction
+├── topolyx_mesh_import.py        # Topolyx topology -> Blender Mesh reconstruction
+├── topolyx_attribute.py          # Blender Mesh Attribute -> Topolyx attribute conversion
+├── topolyx_attribute_import.py   # Topolyx attribute -> Blender Mesh Attribute restoration
+├── topolyx_binary.py             # 4-byte aligned binary buffer builder/reader
+├── topolyx_coordinate.py         # Bidirectional coordinate system conversion
+├── topolyx_utils.py              # Shared utilities (matrix serialization, etc.)
+├── topolyx_validator.py          # Output file validation
+├── topolyx_importer.py           # End-to-end import entry point
+├── topolyx_import_operator.py    # File open dialog and import Operator
 └── tests/
     ├── common.py               # Common test helpers
     ├── run_all.py              # Phase 0~9 integrated test runner
@@ -54,27 +54,27 @@ blender_mattr_exporter/
 
 `register()` registers the following with Blender:
 
-- `MATTR_OT_export_mesh` Operator
-- `MATTR_OT_import_mesh` Operator
-- `File > Export > MATTR (.mattr.json)` menu item
-- `File > Import > MATTR (.mattr.json)` menu item
+- `TOPOLYX_OT_export_mesh` Operator
+- `TOPOLYX_OT_import_mesh` Operator
+- `File > Export > Topolyx (.tlyx.json)` menu item
+- `File > Import > Topolyx (.tlyx.json)` menu item
 
 ### 3. Export Usage Flow
 
-1. The user selects `File > Export > MATTR (.mattr.json)`.
+1. The user selects `File > Export > Topolyx (.tlyx.json)`.
 2. The Operator, inheriting from `ExportHelper`, opens the file save dialog.
 3. The user chooses a path and presses Export.
-4. The Operator's `execute()` is called and passes the target mesh object list to `mattr_writer`.
-5. `mattr_writer` creates `.mattr.json` and `.mattr.bin` based on each object's `obj.data`. The same mesh data block is written only once.
-6. After writing, `mattr_validator` validates the output files.
+4. The Operator's `execute()` is called and passes the target mesh object list to `topolyx_writer`.
+5. `topolyx_writer` creates `.tlyx.json` and `.tlyx.bin` based on each object's `obj.data`. The same mesh data block is written only once.
+6. After writing, `topolyx_validator` validates the output files.
 
 ### 4. Import Usage Flow
 
-1. The user selects `File > Import > MATTR (.mattr.json)`.
+1. The user selects `File > Import > Topolyx (.tlyx.json)`.
 2. The Operator, inheriting from `ImportHelper`, opens the file open dialog.
-3. The user chooses a `.mattr.json` file and presses Import.
-4. The Operator's `execute()` is called and invokes `mattr_importer.import_mattr()`.
-5. `mattr_importer` reads the file pair, reconstructs Blender meshes, restores attributes, and creates objects in the active collection.
+3. The user chooses a `.tlyx.json` file and presses Import.
+4. The Operator's `execute()` is called and invokes `topolyx_importer.import_topolyx()`.
+5. `topolyx_importer` reads the file pair, reconstructs Blender meshes, restores attributes, and creates objects in the active collection.
 6. Imported objects are selected and the last one is made active.
 
 ### 5. Deactivation
@@ -85,10 +85,10 @@ blender_mattr_exporter/
 ## Key Design Decisions
 
 - **Original mesh usage**: Exports the original `obj.data` data block, not the evaluated mesh.
-- **Coordinate system**: Exports to the MATTR v0.3.0 coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW) by default. The `BLENDER` preset produces output identical to Blender's native coordinate system. A `CUSTOM` preset allows configuring up/forward axes, winding, and `meters_per_unit` via the Operator UI.
+- **Coordinate system**: Exports to the Topolyx v0.3.0 coordinate system (`+Z` Up, `+Y` Forward, Right-handed, CCW) by default. The `BLENDER` preset produces output identical to Blender's native coordinate system. A `CUSTOM` preset allows configuring up/forward axes, winding, and `meters_per_unit` via the Operator UI.
 - **Object Transform conversion**: `object.transform` is the matrix that converts mesh local space coordinates to file world space coordinates, transformed according to the selected coordinate system.
 - **Left-handed coordinate system not supported**: Only right-handed coordinate systems are supported; selecting `LEFT` in the UI results in a cancelled export, and importing a file with `handedness: LEFT` raises a validation error.
-- **Bidirectional conversion support**: `mattr_coordinate.py` provides inverse coordinate conversion to prepare for future importer implementation.
+- **Bidirectional conversion support**: `topolyx_coordinate.py` provides inverse coordinate conversion to prepare for future importer implementation.
 - **Attribute handling**:
   - Exports `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes.
   - Supported Blender data types are `FLOAT`, `INT`, `INT8`, `FLOAT2`, `FLOAT_VECTOR`, `FLOAT_COLOR`, `BYTE_COLOR`, `INT32_2D`, `BOOLEAN`.
@@ -106,9 +106,9 @@ blender_mattr_exporter/
   - Non-mesh objects are skipped with a warning.
 - **Mesh sharing**:
   - When multiple objects reference the same mesh data block, it is recorded once in the `meshes` array and shared via `objects[].index`.
-- **Output files**: Generates a `.mattr.bin` with the same basename as the chosen `.mattr.json` path.
-- **Self-validation**: Immediately after export, `mattr_validator` checks the output files and reports specification violations to the user.
-- **Importer preparation**: Added `mattr_reader.py`, `BinaryBufferReader`, attribute reverse mapping, matrix deserialization utilities, `mattr_mesh_import.py` topology reconstruction, and `mattr_attribute_import.py` attribute restoration to lay the groundwork for future importer implementation.
+- **Output files**: Generates a `.tlyx.bin` with the same basename as the chosen `.tlyx.json` path.
+- **Self-validation**: Immediately after export, `topolyx_validator` checks the output files and reports specification violations to the user.
+- **Importer preparation**: Added `topolyx_reader.py`, `BinaryBufferReader`, attribute reverse mapping, matrix deserialization utilities, `topolyx_mesh_import.py` topology reconstruction, and `topolyx_attribute_import.py` attribute restoration to lay the groundwork for future importer implementation.
 - **Attribute import handling**:
   - Restores `POINT`, `EDGE`, `FACE`, `CORNER` domain attributes onto a Blender Mesh.
   - `U32` attributes are stored as signed `INT`/`INT32_2D` while preserving the underlying bit pattern, because Blender has no unsigned 32-bit attribute type.
@@ -117,7 +117,7 @@ blender_mattr_exporter/
   - Attribute names that conflict with Blender internal/reserved names are prefixed with `import_` and a warning is emitted.
   - Coordinate-transform semantics are inverted so that imported attributes align with Blender's coordinate system.
 - **Importer core**:
-  - `mattr_importer.py` reads a MATTR file pair and creates Blender mesh objects in the active layer collection.
+  - `topolyx_importer.py` reads a Topolyx file pair and creates Blender mesh objects in the active layer collection.
   - File-level mesh sharing is preserved across imported objects.
   - Imported objects are selected and the last one is made active.
 
@@ -128,5 +128,5 @@ See [TESTING.md](TESTING.md) for detailed test execution instructions.
 Summary:
 
 ```bash
-blender -b -P blender_mattr_exporter/tests/run_all.py
+blender -b -P blender_topolyx_exporter/tests/run_all.py
 ```

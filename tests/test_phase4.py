@@ -1,7 +1,7 @@
 """Phase 4 테스트 — 다중 오브젝트 및 메시 공유 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase4.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase4.py
 """
 
 import sys
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.tests import common
 
 
 def test_two_separate_meshes():

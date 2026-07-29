@@ -1,4 +1,4 @@
-"""MATTR 포맷 v0.3.0에 사용하는 데이터 모델."""
+"""Topolyx 포맷 v0.3.0에 사용하는 데이터 모델."""
 
 from dataclasses import dataclass, field
 from typing import Any, Dict, List
@@ -105,7 +105,7 @@ class TopologyData:
 
 @dataclass
 class Attribute:
-    """MATTR JSON의 meshes[].attributes 항목."""
+    """Topolyx JSON의 meshes[].attributes 항목."""
 
     name: str
     domain: str  # "POINT" | "EDGE" | "FACE" | "CORNER"
@@ -132,7 +132,7 @@ class Attribute:
 
 @dataclass
 class Mesh:
-    """MATTR JSON의 meshes 배열 항목."""
+    """Topolyx JSON의 meshes 배열 항목."""
 
     name: str
     element_counts: ElementCounts
@@ -161,7 +161,7 @@ class Mesh:
 
 @dataclass
 class ObjectEntry:
-    """MATTR JSON의 objects 배열 항목."""
+    """Topolyx JSON의 objects 배열 항목."""
 
     name: str
     type: str
@@ -188,9 +188,9 @@ class ObjectEntry:
 
 @dataclass
 class Header:
-    """MATTR 파일 헤더."""
+    """Topolyx 파일 헤더."""
 
-    format: str = "MATTR"
+    format: str = "Topolyx"
     version: str = "0.3"
 
     def to_dict(self) -> Dict[str, str]:
@@ -247,8 +247,8 @@ class Buffer:
 
 
 @dataclass
-class MattrFile:
-    """전체 MATTR JSON 문서."""
+class TopolyxFile:
+    """전체 Topolyx JSON 문서."""
 
     header: Header
     buffer: Buffer
@@ -266,7 +266,7 @@ class MattrFile:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "MattrFile":
+    def from_dict(cls, data: Dict[str, Any]) -> "TopolyxFile":
         return cls(
             header=Header.from_dict(data["header"]),
             buffer=Buffer.from_dict(data["buffer"]),

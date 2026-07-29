@@ -1,17 +1,17 @@
-"""Blender Mesh 데이터 블록에서 MATTR 토폴로지 데이터를 추출한다."""
+"""Blender Mesh 데이터 블록에서 Topolyx 토폴로지 데이터를 추출한다."""
 
 from typing import List
 
 import bpy
 
-from .mattr_coordinate import CoordinateConverter
-from .mattr_types import ElementCounts, TopologyData
+from .topolyx_coordinate import CoordinateConverter
+from .topolyx_types import ElementCounts, TopologyData
 
 
 def extract_topology(
     mesh: bpy.types.Mesh, converter: CoordinateConverter
 ) -> TopologyData:
-    """Blender Mesh로부터 MATTR 필수 토폴로지 배열을 추출한다.
+    """Blender Mesh로부터 Topolyx 필수 토폴로지 배열을 추출한다.
 
     positions, edges, corner_vertices, corner_edges, face_offsets를
     flat list 형태로 반환한다. ``converter``를 통해 positions는

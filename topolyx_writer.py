@@ -1,4 +1,4 @@
-"""Assemble and write MATTR JSON + binary file pairs."""
+"""Assemble and write Topolyx JSON + binary file pairs."""
 
 import json
 from pathlib import Path
@@ -7,21 +7,21 @@ from typing import Callable, List, Optional, Sequence
 import bpy
 from mathutils import Quaternion, Vector
 
-from . import mattr_attribute, mattr_binary, mattr_coordinate, mattr_mesh
-from .mattr_coordinate import CoordinateConverter
-from .mattr_types import (
+from . import topolyx_attribute, topolyx_binary, topolyx_coordinate, topolyx_mesh
+from .topolyx_coordinate import CoordinateConverter
+from .topolyx_types import (
     Attribute,
     Buffer,
     CoordinateSystem,
     DataDescriptor,
     Header,
-    MattrFile,
+    TopolyxFile,
     Mesh,
     ObjectEntry,
     Topology,
     TopologyData,
 )
-from .mattr_utils import matrix_to_column_major_list
+from .topolyx_utils import matrix_to_column_major_list
 
 
 _COMPONENT_SIZES = {
@@ -34,7 +34,7 @@ _COMPONENT_SIZES = {
 }
 
 
-def write_mattr(
+def write_topolyx(
     filepath: str,
     objects: Sequence[bpy.types.Object],
     coordinate_system: CoordinateSystem,
@@ -44,10 +44,10 @@ def write_mattr(
     remove_semantic_prefix: bool = False,
     progress_callback: Optional[Callable[[int], None]] = None,
 ) -> List[str]:
-    """Export one or more mesh objects as a MATTR file pair.
+    """Export one or more mesh objects as a Topolyx file pair.
 
     Args:
-        filepath: Destination .mattr.json path.
+        filepath: Destination .tlyx.json path.
         objects: Sequence of Blender MESH objects to export.
         coordinate_system: Target CoordinateSystem descriptor.
         export_attributes: Whether to export mesh attributes.
@@ -67,7 +67,7 @@ def write_mattr(
     target_cs = converter.target
 
     excluded_names = _parse_excluded_attribute_names(excluded_attribute_names)
-    buffer = mattr_binary.BinaryBuffer()
+    buffer = topolyx_binary.BinaryBuffer()
 
     mesh_to_index: dict[bpy.types.Mesh, int] = {}
     meshes: list[Mesh] = []
@@ -77,8 +77,8 @@ def write_mattr(
     for obj_index, obj in enumerate(objects):
         mesh = obj.data
         if mesh not in mesh_to_index:
-            topology_data = mattr_mesh.extract_topology(mesh, converter)
-            attribute_arrays, warnings = mattr_attribute.extract_attributes(
+            topology_data = topolyx_mesh.extract_topology(mesh, converter)
+            attribute_arrays, warnings = topolyx_attribute.extract_attributes(
                 mesh,
                 topology_data.element_counts,
                 export_attributes=export_attributes,
@@ -88,12 +88,12 @@ def write_mattr(
             )
             all_warnings.extend(warnings)
 
-            mattr_mesh_obj = _append_mesh(
+            topolyx_mesh_obj = _append_mesh(
                 buffer, mesh.name, topology_data, attribute_arrays, converter
             )
             index = len(meshes)
             mesh_to_index[mesh] = index
-            meshes.append(mattr_mesh_obj)
+            meshes.append(topolyx_mesh_obj)
         else:
             index = mesh_to_index[mesh]
 
@@ -111,7 +111,7 @@ def write_mattr(
         if progress_callback is not None:
             progress_callback(obj_index + 1)
 
-    mattr_file = MattrFile(
+    topolyx_file = TopolyxFile(
         header=Header(),
         buffer=Buffer(uri=bin_uri, byte_length=buffer.byte_length()),
         coordinate_system=target_cs,
@@ -121,7 +121,7 @@ def write_mattr(
 
     try:
         with open(path, "w", encoding="utf-8") as f:
-            json.dump(mattr_file.to_dict(), f, indent=4, ensure_ascii=False)
+            json.dump(topolyx_file.to_dict(), f, indent=4, ensure_ascii=False)
         buffer.write(bin_path)
     except Exception:
         # Remove incomplete file pair if writing fails mid-way.
@@ -138,10 +138,10 @@ def _parse_excluded_attribute_names(names_str: str) -> set[str]:
 
 
 def _append_mesh(
-    buffer: mattr_binary.BinaryBuffer,
+    buffer: topolyx_binary.BinaryBuffer,
     mesh_name: str,
     topology_data: TopologyData,
-    attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
+    attribute_arrays: Sequence[topolyx_attribute.AttributeArrays],
     converter: CoordinateConverter,
 ) -> Mesh:
     """Append topology and attributes for a single mesh to the binary buffer."""
@@ -202,8 +202,8 @@ def _append_mesh(
 
 
 def _append_attributes(
-    buffer: mattr_binary.BinaryBuffer,
-    attribute_arrays: Sequence[mattr_attribute.AttributeArrays],
+    buffer: topolyx_binary.BinaryBuffer,
+    attribute_arrays: Sequence[topolyx_attribute.AttributeArrays],
     converter: CoordinateConverter,
 ) -> list[Attribute]:
     """Append attribute arrays to the binary buffer and build descriptors."""

@@ -1,7 +1,7 @@
-"""Phase 8 테스트 — MATTR attribute의 Blender Mesh 복원 검증.
+"""Phase 8 테스트 — Topolyx attribute의 Blender Mesh 복원 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase8.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase8.py
 """
 
 import array
@@ -13,14 +13,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter.mattr_attribute import mattr_component_type_to_blender
-from blender_mattr_exporter.mattr_attribute_import import (
+from blender_topolyx_exporter.topolyx_attribute import topolyx_component_type_to_blender
+from blender_topolyx_exporter.topolyx_attribute_import import (
     _read_u32_as_i32,
     apply_attributes,
 )
-from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
-from blender_mattr_exporter.mattr_reader import read_mattr
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from blender_topolyx_exporter.topolyx_reader import read_topolyx
+from blender_topolyx_exporter.tests import common
 
 
 _TYPE_COMPONENT_COUNT = {
@@ -83,9 +83,9 @@ def test_point_float_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "point_float")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -119,9 +119,9 @@ def test_edge_int_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "edge_int")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -155,9 +155,9 @@ def test_face_float_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "face_float")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -194,9 +194,9 @@ def test_corner_float_color_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "corner_color")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -229,9 +229,9 @@ def test_uvmap_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "uvmap_cube")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -268,9 +268,9 @@ def test_int32_2d_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "int32_2d")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -304,9 +304,9 @@ def test_face_bool_attribute():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "face_bool")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -347,9 +347,9 @@ def test_multiple_attributes():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "multi_attr")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -387,15 +387,15 @@ def test_reserved_attribute_name_renamed():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "reserved_name")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
 
         # 파일 내 attribute 이름을 예약어 "position"으로 강제 변경하여 collision 테스트
         reserved_attr = next(
-            attr for attr in mattr_file.meshes[0].attributes if attr.name == "ReservedPoint"
+            attr for attr in topolyx_file.meshes[0].attributes if attr.name == "ReservedPoint"
         )
         reserved_attr.name = "position"
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert any("position" in w for w in warnings), f"Expected rename warning, got {warnings}"
 
@@ -423,9 +423,9 @@ def test_u32_bit_cast_to_i32():
 
     assert i32_values == [0, 1, -1, -2147483648]
 
-    # mattr_component_type_to_blender도 U32x1, U32x2를 INT/INT32_2D로 매핑하는지 확인
-    assert mattr_component_type_to_blender("U32", 1) == ("INT", "value")
-    assert mattr_component_type_to_blender("U32", 2) == ("INT32_2D", "value")
+    # topolyx_component_type_to_blender도 U32x1, U32x2를 INT/INT32_2D로 매핑하는지 확인
+    assert topolyx_component_type_to_blender("U32", 1) == ("INT", "value")
+    assert topolyx_component_type_to_blender("U32", 2) == ("INT32_2D", "value")
 
     print("test_u32_bit_cast_to_i32 passed")
 
@@ -433,7 +433,7 @@ def test_u32_bit_cast_to_i32():
 def test_u32_unsupported_component_count():
     """U32x3 같은 지원하지 않는 component_count는 ValueError를 발생시켜야 한다."""
     try:
-        mattr_component_type_to_blender("U32", 3)
+        topolyx_component_type_to_blender("U32", 3)
         raise AssertionError("Expected ValueError for U32x3")
     except ValueError:
         pass
@@ -458,9 +458,9 @@ def test_byte_color_roundtrip():
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "byte_color_rt")
         imported_mesh = common.import_topology_only(json_path, bin_path)
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
         warnings = apply_attributes(
-            imported_mesh, mattr_file.meshes[0].attributes, bin_data
+            imported_mesh, topolyx_file.meshes[0].attributes, bin_data
         )
         assert not warnings, f"Unexpected warnings: {warnings}"
 
@@ -481,8 +481,8 @@ def test_byte_color_roundtrip():
 
 def test_i8_attribute_import():
     """I8x1 attribute가 import 시 INT로 부호 확장되어 저장되는지 확인한다."""
-    from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
-    from blender_mattr_exporter.mattr_types import Attribute, DataDescriptor
+    from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
+    from blender_topolyx_exporter.topolyx_types import Attribute, DataDescriptor
 
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))

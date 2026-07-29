@@ -1,4 +1,4 @@
-# MATTR Exporter Architecture
+# Topolyx Exporter Architecture
 
 각 파일별 public API 시그니처와 역할을 정리한다. 세부 구현은 포함하지 않는다.
 
@@ -39,19 +39,19 @@ def unregister() -> None
 ```
 - 메뉴 항목을 제거하고, 등록된 클래스를 역순으로 해제한다.
 
-## `mattr_export_operator.py`
+## `topolyx_export_operator.py`
 
 - **역할**: 사용자가 `File > Export` 메뉴를 통해 익스포트를 실행할 때 동작하는 Operator를 정의한다.
 
 ### Public API
 
 ```python
-class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
+class TOPOLYX_OT_export_mesh(bpy.types.Operator, ExportHelper)
 ```
 
-- **Operator 식별자**: `export_mesh.mattr`
-- **레이블**: `Export MATTR`
-- **파일 확장자**: `.mattr.json`
+- **Operator 식별자**: `export_mesh.tlyx`
+- **레이블**: `Export Topolyx`
+- **파일 확장자**: `.tlyx.json`
 
 #### 클래스 속성
 
@@ -62,7 +62,7 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 | `filename_ext` | `str` | 기본 파일 확장자 |
 | `filter_glob` | `StringProperty` | 파일 대화상자 필터 |
 | `use_selection` | `BoolProperty` | `True`면 선택된 오브젝트만, `False`면 씬의 모든 메시 오브젝트 익스포트 |
-| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"`, `"MATTR_DEFAULT"`, `"CUSTOM"` 좌표계 preset 선택 |
+| `coordinate_system_preset` | `EnumProperty` | `"BLENDER"`, `"TOPOLYX_DEFAULT"`, `"CUSTOM"` 좌표계 preset 선택 |
 | `up_axis` | `EnumProperty` | CUSTOM preset에서 up axis (`+X`~`-Z`) |
 | `forward_axis` | `EnumProperty` | CUSTOM preset에서 forward axis (`+X`~`-Z`) |
 | `handedness` | `EnumProperty` | `"RIGHT"` 또는 `"LEFT"` (LEFT는 미지원) |
@@ -78,7 +78,7 @@ class MATTR_OT_export_mesh(bpy.types.Operator, ExportHelper)
 ```python
 def check(self, context: bpy.types.Context) -> bool
 ```
-- `ExportHelper`의 기본 `check()`를 오버라이드하여 `.mattr.json` 다중 확장자가 중복되지 않도록 filepath를 보정한다.
+- `ExportHelper`의 기본 `check()`를 오버라이드하여 `.tlyx.json` 다중 확장자가 중복되지 않도록 filepath를 보정한다.
 
 ```python
 def draw(self, context: bpy.types.Context) -> None
@@ -90,17 +90,17 @@ def execute(self, context: bpy.types.Context) -> set[str]
 ```
 - 선택된 오브젝트와 설정을 기반으로 익스포트를 수행한다.
 - 익스포트 중 발생한 경고를 수집하여 UI에 리포트한다.
-- 익스포트 완료 후 `mattr_validator.validate_mattr_file()`로 출력을 검증한다.
+- 익스포트 완료 후 `topolyx_validator.validate_topolyx_file()`로 출력을 검증한다.
 - 성공 시 `{'FINISHED'}`를 반환한다.
 
-## `mattr_writer.py`
+## `topolyx_writer.py`
 
-- **역할**: MATTR JSON 메타데이터와 binary 버퍼를 조립하여 파일 시스템에 쓴다.
+- **역할**: Topolyx JSON 메타데이터와 binary 버퍼를 조립하여 파일 시스템에 쓴다.
 
 ### Public API
 
 ```python
-def write_mattr(
+def write_topolyx(
     filepath: str,
     objects: Sequence[bpy.types.Object],
     coordinate_system: CoordinateSystem,
@@ -112,7 +112,7 @@ def write_mattr(
 ```
 
 - **입력**:
-  - `filepath`: 사용자가 선택한 `.mattr.json` 파일 경로
+  - `filepath`: 사용자가 선택한 `.tlyx.json` 파일 경로
   - `objects`: 내보낼 MESH 타입 Blender 오브젝트 목록
   - `coordinate_system`: `CoordinateSystem` 객체 형태의 목표 좌표계
   - `remove_semantic_prefix`: semantic prefix를 attribute 이름에서 제거할지 여부
@@ -120,7 +120,7 @@ def write_mattr(
   - `exclude_hidden_attributes`: 내부 Outputplus/internal attribute 제외 여부
   - `excluded_attribute_names`: 쉼표로 구분된 추가 제외 attribute 이름
 - **동작**:
-  - 동일한 basename을 가진 `.mattr.json`과 `.mattr.bin`을 생성한다.
+  - 동일한 basename을 가진 `.tlyx.json`과 `.tlyx.bin`을 생성한다.
   - `objects`를 순회하며 메시 데이터 블록을 기준으로 중복을 제거한다.
   - 동일한 메시를 참조하는 오브젝트는 `meshes` 배열에서 한 번만 기록된다.
 - **반환**: 내보내는 중 발생한 경고 메시지 목록
@@ -139,71 +139,71 @@ def _append_mesh(
 - attribute 값은 semantic에 따라 `converter`를 통해 좌표계 변환된다.
 - 추가된 배열의 descriptor를 포함하는 `Mesh` 객체를 반환한다.
 
-## `mattr_reader.py`
+## `topolyx_reader.py`
 
-- **역할**: MATTR `.mattr.json` + `.mattr.bin` 파일 쌍을 읽어 `MattrFile` 데이터 모델과 raw binary bytes로 복원한다.
-
-### Public API
-
-```python
-def read_mattr(json_path: str | Path) -> Tuple[MattrFile, bytes]
-```
-
-- 지정한 JSON 경로와 동일한 basename의 `.mattr.bin` 파일을 함께 읽는다.
-- `mattr_validator.validate_mattr()`로 검증한 후 `MattrFile.from_dict()`를 통해 파싱한다.
-- 검증 실패 시 `MattrValidationError`를 발생시킨다.
-
-```python
-def read_mattr_from_data(json_data: dict, bin_data: bytes) -> MattrFile
-```
-
-- 이미 메모리에 로드된 JSON dict와 binary bytes에서 `MattrFile`을 생성한다.
-- `validate_mattr()`을 먼저 호출한다.
-
-## `mattr_importer.py`
-
-- **역할**: `MattrFile` 데이터를 Blender 씬의 메시 오브젝트로 복원한다.
+- **역할**: Topolyx `.tlyx.json` + `.tlyx.bin` 파일 쌍을 읽어 `TopolyxFile` 데이터 모델과 raw binary bytes로 복원한다.
 
 ### Public API
 
 ```python
-class MattrImportError(Exception)
+def read_topolyx(json_path: str | Path) -> Tuple[TopolyxFile, bytes]
+```
+
+- 지정한 JSON 경로와 동일한 basename의 `.tlyx.bin` 파일을 함께 읽는다.
+- `topolyx_validator.validate_topolyx()`로 검증한 후 `TopolyxFile.from_dict()`를 통해 파싱한다.
+- 검증 실패 시 `TopolyxValidationError`를 발생시킨다.
+
+```python
+def read_topolyx_from_data(json_data: dict, bin_data: bytes) -> TopolyxFile
+```
+
+- 이미 메모리에 로드된 JSON dict와 binary bytes에서 `TopolyxFile`을 생성한다.
+- `validate_topolyx()`을 먼저 호출한다.
+
+## `topolyx_importer.py`
+
+- **역할**: `TopolyxFile` 데이터를 Blender 씬의 메시 오브젝트로 복원한다.
+
+### Public API
+
+```python
+class TopolyxImportError(Exception)
 ```
 
 - import 중 치명적 오류 발생 시 발생하는 예외.
 
 ```python
-def import_mattr(
+def import_topolyx(
     filepath: str | Path,
     import_attributes: bool = True,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> List[str]
 ```
 
-- MATTR 파일을 읽어 Blender 씬으로 import한다.
+- Topolyx 파일을 읽어 Blender 씬으로 import한다.
 - `import_attributes=False`이면 attribute 복원을 건다.
 - `(current_step, total_steps)`를 전달하는 progress_callback을 선택적으로 받는다.
 - 복원 중 발생한 경고 메시지 목록을 반환한다.
 
 ### Internal helpers
 
-- `_build_mesh()`: `MattrFile.meshes[]` 항목 하나를 Blender `Mesh`로 변환
-- `_create_object()`: `MattrFile.objects[]` 항목 하나를 Blender `Object`로 생성 및 씬 링크
+- `_build_mesh()`: `TopolyxFile.meshes[]` 항목 하나를 Blender `Mesh`로 변환
+- `_create_object()`: `TopolyxFile.objects[]` 항목 하나를 Blender `Object`로 생성 및 씬 링크
 - `_cleanup_import()`: 실패 시 생성된 object/mesh 삭제
 
-## `mattr_import_operator.py`
+## `topolyx_import_operator.py`
 
 - **역할**: `File > Import` 메뉴에서 실행되는 Blender Operator를 제공한다.
 
 ### Public API
 
 ```python
-class MATTR_OT_import_mesh(Operator, ImportHelper)
+class TOPOLYX_OT_import_mesh(Operator, ImportHelper)
 ```
 
-- **Operator 식별자**: `import_mesh.mattr`
-- **레이블**: `Import MATTR`
-- **파일 확장자**: `.mattr.json`
+- **Operator 식별자**: `import_mesh.tlyx`
+- **레이블**: `Import Topolyx`
+- **파일 확장자**: `.tlyx.json`
 - **bl_options**: `{"PRESET", "UNDO"}`
 
 #### 클래스 속성
@@ -226,14 +226,14 @@ def draw(self, context: bpy.types.Context) -> None
 ```python
 def execute(self, context: bpy.types.Context) -> set[str]
 ```
-- `mattr_importer.import_mattr()`를 호출하여 import를 수행한다.
+- `topolyx_importer.import_topolyx()`를 호출하여 import를 수행한다.
 - 진행률 표시줄을 업데이트한다.
 - 발생한 경고를 UI와 콘솔에 노출한다.
 - 성공 시 `{'FINISHED'}`를 반환한다.
 
-## `mattr_types.py`
+## `topolyx_types.py`
 
-- **역할**: MATTR JSON을 표현하는 데이터 클래스(`DataDescriptor`, `Topology`, `Mesh`, `ObjectEntry`, `MattrFile` 등)를 정의한다.
+- **역할**: Topolyx JSON을 표현하는 데이터 클래스(`DataDescriptor`, `Topology`, `Mesh`, `ObjectEntry`, `TopolyxFile` 등)를 정의한다.
 - 각 dataclass는 `to_dict()`와 역직렬화용 `from_dict()`를 제공한다.
 
 ### Public API
@@ -253,7 +253,7 @@ class Topology
 
 ```python
 @dataclass
-class MattrFile
+class TopolyxFile
 ```
 
 - 전체 JSON 문서 루트. `to_dict()`로 dict로 변환한다.
@@ -271,11 +271,11 @@ class Attribute
 class Header
 ```
 
-- `format`은 `"MATTR"`, `version`은 `"0.3"`이다.
+- `format`은 `"Topolyx"`, `version`은 `"0.3"`이다.
 
-## `mattr_mesh.py`
+## `topolyx_mesh.py`
 
-- **역할**: Blender `bpy.types.Mesh` 데이터 블록에서 MATTR 필수 토폴로지 배열을 추출한다.
+- **역할**: Blender `bpy.types.Mesh` 데이터 블록에서 Topolyx 필수 토폴로지 배열을 추출한다.
 
 ### Public API
 
@@ -287,9 +287,9 @@ def extract_topology(mesh: bpy.types.Mesh, converter: CoordinateConverter) -> To
 - `face_offsets`는 `mesh.polygons`의 인덱스 순서를 따른다.
 - 반환값에는 `element_counts`와 `positions`, `edges`, `corner_vertices`, `corner_edges`, `face_offsets`가 포함된다.
 
-## `mattr_mesh_import.py`
+## `topolyx_mesh_import.py`
 
-- **역할**: MATTR topology 배열(positions, edges, corner_vertices, corner_edges, face_offsets)로 Blender `bpy.types.Mesh` 데이터 블록을 복원한다.
+- **역할**: Topolyx topology 배열(positions, edges, corner_vertices, corner_edges, face_offsets)로 Blender `bpy.types.Mesh` 데이터 블록을 복원한다.
 
 ### Public API
 
@@ -310,9 +310,9 @@ def build_blender_mesh(
 - 생성 후 `mesh.loops[i].edge_index`가 `corner_edges[i]`와 일치하도록 강제한다.
 - duplicate edge가 있으면 `ValueError`를 발생시킨다.
 
-## `mattr_attribute.py`
+## `topolyx_attribute.py`
 
-- **역할**: Blender `bpy.types.Mesh` 데이터 블록의 attribute를 MATTR attribute로 변환한다.
+- **역할**: Blender `bpy.types.Mesh` 데이터 블록의 attribute를 Topolyx attribute로 변환한다.
 
 ### Public API
 
@@ -343,12 +343,12 @@ def extract_attributes(
 - attribute 이름이나 data_type에 따라 `semantic`이 자동 할당되며, `DIRECTION_`, `POSITION_` 등의 prefix도 인식한다.
 
 ```python
-def mattr_component_type_to_blender(
+def topolyx_component_type_to_blender(
     component_type: str, component_count: int
 ) -> Tuple[str, str]
 ```
 
-- MATTR의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
+- TOPOLYX의 `(component_type, component_count)` 조합을 Blender의 `(data_type, prop_name)`으로 환산한다.
 - `F32×4`는 `FLOAT_COLOR`로, `U8×4`는 `BYTE_COLOR`로 환산한다.
 - `I8×1`은 `INT8`로 환산한다.
 - `U32×1`과 `U32×2`는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로 유지한 채 `INT`/`INT32_2D`로 환산한다.
@@ -356,9 +356,9 @@ def mattr_component_type_to_blender(
 - `INT32_2D`의 `foreach_get`/`foreach_set` property는 `"value"`이다.
 - 지원하지 않는 조합이면 `ValueError`를 발생시킨다.
 
-## `mattr_attribute_import.py`
+## `topolyx_attribute_import.py`
 
-- **역할**: 이미 생성된 Blender `bpy.types.Mesh` 데이터 블록에 MATTR attribute를 복원한다.
+- **역할**: 이미 생성된 Blender `bpy.types.Mesh` 데이터 블록에 Topolyx attribute를 복원한다.
 
 ### Public API
 
@@ -373,16 +373,16 @@ def apply_attributes(
 ```
 
 - `mesh`의 topology가 완성된 상태에서 호출한다.
-- `BinaryBufferReader`로 binary를 읽고, `mattr_component_type_to_blender()`로 Blender attribute type을 결정한다.
+- `BinaryBufferReader`로 binary를 읽고, `topolyx_component_type_to_blender()`로 Blender attribute type을 결정한다.
 - `position`, `material_index` 등 Blender internal/reserved 이름과 충돌하는 이름은 `import_` prefix를 붙여 rename한다.
 - U32 attribute는 비트 패턴을 그대로 I32로 해석하여 저장한다.
 - U8×4 attribute는 `BYTE_COLOR`로, I8×1 attribute는 `INT8`로 복원한다.
 - `converter`가 주어지면 coordinate-transform semantic (`POSITION`, `DIRECTION`, `ROTATION`, `TANGENT`) attribute 값을 Blender 좌표계로 역변환한다.
 - 반환값은 경고 메시지 목록이다.
 
-## `mattr_coordinate.py`
+## `topolyx_coordinate.py`
 
-- **역할**: Blender 좌표계와 MATTR 목표 좌표계 사이를 양방향으로 변환하는 변환기를 제공한다.
+- **역할**: Blender 좌표계와 Topolyx 목표 좌표계 사이를 양방향으로 변환하는 변환기를 제공한다.
 
 ### Public API
 
@@ -399,7 +399,7 @@ class CoordinateConverter
 ```python
 def __init__(self, preset: str) -> None
 ```
-- `"BLENDER"` 또는 `"MATTR_DEFAULT"` preset으로 초기화한다.
+- `"BLENDER"` 또는 `"TOPOLYX_DEFAULT"` preset으로 초기화한다.
 - Right-handed 좌표계만 지원한다.
 
 ```python
@@ -458,7 +458,7 @@ def inverse_convert_tangent(self, t: Vector) -> Vector
 ```
 - target Tangent 벡터 `(x, y, z, w)`를 Blender 좌표계로 변환한다.
 
-## `mattr_utils.py`
+## `topolyx_utils.py`
 
 - **역할**: 익스포터와 향후 임포터가 공유하는 작은 유틸리티 함수를 제공한다.
 
@@ -475,7 +475,7 @@ def column_major_list_to_matrix(values: Sequence[float]) -> Matrix
 - column-major 16개 float list를 `mathutils.Matrix`로 복원한다.
 - 길이가 16이 아니면 `ValueError`를 발생시킨다.
 
-## `mattr_binary.py`
+## `topolyx_binary.py`
 
 - **역할**: little-endian F32/I32/U32/I8/U8/BOOL 배열을 4바이트 정렬로 조립하는 binary 버퍼와, 기록된 버퍼를 읽는 reader를 제공한다.
 
@@ -572,20 +572,20 @@ def read_u8(self, offset: int, count: int) -> array.array
 
 - 지정한 offset부터 count개의 U8 값을 읽어 `array.array('B')`로 반환한다.
 
-## `mattr_validator.py`
+## `topolyx_validator.py`
 
-- **역할**: MATTR 출력 파일이 명세의 유효성 조건을 만족하는지 검증한다.
+- **역할**: Topolyx 출력 파일이 명세의 유효성 조건을 만족하는지 검증한다.
 
 ### Public API
 
 ```python
-class MattrValidationError(Exception)
+class TopolyxValidationError(Exception)
 ```
 
 - 검증 실패 시 발생하는 예외.
 
 ```python
-def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
+def validate_topolyx(json_data: Dict[str, Any], bin_data: bytes) -> None
 ```
 
 - `header`, `buffer`, `coordinate_system`, `mesh` descriptor, 인덱스 범위, `face_offsets`, corner-edge 일관성을 검사한다.
@@ -595,14 +595,14 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None
 - `coordinate_system.meters_per_unit`이 양의 유한수인지 검사한다.
 - object/mesh/attribute 이름이 비어 있거나 잘못 중복되지 않는지 검사한다.
 - topology `edges`에 self-edge나 중복 edge가 없는지 검사한다.
-- 조건을 만족하지 않으면 `MattrValidationError`를 발생시킨다.
+- 조건을 만족하지 않으면 `TopolyxValidationError`를 발생시킨다.
 
 ```python
-def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> None
+def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> None
 ```
 
-- JSON 파일 경로를 기준으로 `.mattr.json` + `.mattr.bin` 파일 쌍을 읽어 검증한다.
-- `bin_path`를 생략하면 `json_path`와 동일한 basename의 `.mattr.bin`을 사용한다.
+- JSON 파일 경로를 기준으로 `.tlyx.json` + `.tlyx.bin` 파일 쌍을 읽어 검증한다.
+- `bin_path`를 생략하면 `json_path`와 동일한 basename의 `.tlyx.bin`을 사용한다.
 
 ## `tests/common.py`
 
@@ -613,7 +613,7 @@ def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> Non
 ```python
 ADDON_MODULE: str
 ```
-- 애드온 모듈 이름 `"blender_mattr_exporter"`.
+- 애드온 모듈 이름 `"blender_topolyx_exporter"`.
 
 ```python
 def reset_addon() -> module
@@ -648,7 +648,7 @@ def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path,
 ```python
 def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]
 ```
-- JSON과 binary를 읽어 `validate_mattr`로 검증 후 반환한다.
+- JSON과 binary를 읽어 `validate_topolyx`로 검증 후 반환한다.
 
 ```python
 def find_attribute(data: dict, name: str, mesh_index: int = 0) -> dict
@@ -688,7 +688,7 @@ def tempdir() -> Path
 ```python
 def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh
 ```
-- MATTR 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+- Topolyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 - Phase 7/8 테스트에서 mesh 생성 로직을 공유하기 위해 사용한다.
 
 ## `tests/run_all.py`
@@ -730,16 +730,16 @@ def main() -> int
 
 ## `tests/test_phase6.py`
 
-- **역할**: Blender 백그라운드 모드에서 양방향 좌표 변환, 행렬 직렬화/역직렬화, binary reader, attribute 역매핑, `mattr_reader`를 검증.
+- **역할**: Blender 백그라운드 모드에서 양방향 좌표 변환, 행렬 직렬화/역직렬화, binary reader, attribute 역매핑, `topolyx_reader`를 검증.
 
 ## `tests/test_phase7.py`
 
-- **역할**: Blender 백그라운드 모드에서 `mattr_mesh_import.py`의 topology 복원 기능을 검증. Default Cube, 빈 메시, loose vertex/edge, N-gon, mixed face, CW winding reverse를 포함한다.
+- **역할**: Blender 백그라운드 모드에서 `topolyx_mesh_import.py`의 topology 복원 기능을 검증. Default Cube, 빈 메시, loose vertex/edge, N-gon, mixed face, CW winding reverse를 포함한다.
 
 ## `tests/test_phase8.py`
 
-- **역할**: Blender 백그라운드 모드에서 `mattr_attribute_import.py`의 attribute 복원 기능을 검증. POINT/EDGE/FACE/CORNER domain의 FLOAT, INT, FLOAT_COLOR, FLOAT2, INT32_2D attribute round-trip, 다중 attribute, 예약어 이름 rename, U32 bit-cast를 포함한다.
+- **역할**: Blender 백그라운드 모드에서 `topolyx_attribute_import.py`의 attribute 복원 기능을 검증. POINT/EDGE/FACE/CORNER domain의 FLOAT, INT, FLOAT_COLOR, FLOAT2, INT32_2D attribute round-trip, 다중 attribute, 예약어 이름 rename, U32 bit-cast를 포함한다.
 
 ## `tests/test_phase9.py`
 
-- **역할**: Blender 백그라운드 모드에서 `mattr_importer.py`의 end-to-end import 기능을 검증. round-trip, 다중 오브젝트, shared mesh, apply_transform, empty mesh, attribute toggle, reserved name 처리를 포함한다.
+- **역할**: Blender 백그라운드 모드에서 `topolyx_importer.py`의 end-to-end import 기능을 검증. round-trip, 다중 오브젝트, shared mesh, apply_transform, empty mesh, attribute toggle, reserved name 처리를 포함한다.

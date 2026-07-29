@@ -1,7 +1,7 @@
 """Phase 3 테스트 — attribute 익스포트 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase3.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase3.py
 """
 
 import struct
@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.tests import common
 
 
 def test_default_cube_with_uvmap():

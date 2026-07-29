@@ -1,4 +1,4 @@
-"""Blender Mesh attribute를 MATTR attribute로 추출한다."""
+"""Blender Mesh attribute를 Topolyx attribute로 추출한다."""
 
 import array
 from dataclasses import dataclass
@@ -6,7 +6,7 @@ from typing import List, Optional, Set, Tuple
 
 import bpy
 
-from .mattr_types import ElementCounts
+from .topolyx_types import ElementCounts
 
 
 @dataclass
@@ -21,8 +21,8 @@ class AttributeArrays:
     semantic: str = "NONE"
 
 
-# Blender data_type → (MATTR component_type, component_count, foreach_get property)
-_BLENDER_TO_MATTR_TYPE_MAP = {
+# Blender data_type → (Topolyx component_type, component_count, foreach_get property)
+_BLENDER_TO_TOPOLYX_TYPE_MAP = {
     "FLOAT": ("F32", 1, "value"),
     "INT": ("I32", 1, "value"),
     "INT8": ("I8", 1, "value"),
@@ -34,8 +34,8 @@ _BLENDER_TO_MATTR_TYPE_MAP = {
     "INT32_2D": ("I32", 2, "value"),
 }
 
-# (MATTR component_type, component_count) → (Blender data_type, foreach_get property)
-_MATTR_TO_BLENDER_TYPE_MAP = {
+# (Topolyx component_type, component_count) → (Blender data_type, foreach_get property)
+_TOPOLYX_TO_BLENDER_TYPE_MAP = {
     ("F32", 1): ("FLOAT", "value"),
     ("F32", 2): ("FLOAT2", "vector"),
     ("F32", 3): ("FLOAT_VECTOR", "vector"),
@@ -66,7 +66,7 @@ _DOMAIN_COUNT_KEY = {
 # semantic prefix 기반 매핑에 사용할 접두사 목록
 _SEMANTIC_PREFIXES = ("POSITION", "DIRECTION", "ROTATION", "TANGENT", "COLOR")
 
-# Blender 기본 attribute 이름 → MATTR semantic 자동 매핑
+# Blender 기본 attribute 이름 → Topolyx semantic 자동 매핑
 _DEFAULT_SEMANTIC_MAP = {
     "normal": "DIRECTION",
     "tangent": "TANGENT",
@@ -76,7 +76,7 @@ _DEFAULT_SEMANTIC_MAP = {
 
 
 def _assign_semantic(name: str, data_type: str) -> str:
-    """Blender attribute 이름과 data_type에 따라 MATTR semantic을 결정한다."""
+    """Blender attribute 이름과 data_type에 따라 Topolyx semantic을 결정한다."""
     if name in _DEFAULT_SEMANTIC_MAP:
         return _DEFAULT_SEMANTIC_MAP[name]
     for prefix in _SEMANTIC_PREFIXES:
@@ -103,7 +103,7 @@ def extract_attributes(
     excluded_names: Optional[Set[str]] = None,
     remove_semantic_prefix: bool = False,
 ) -> Tuple[List[AttributeArrays], List[str]]:
-    """Blender mesh에서 MATTR로 낳볼 attribute 배열을 추출한다.
+    """Blender mesh에서 TOPOLYX로 낳볼 attribute 배열을 추출한다.
 
     Returns:
         (attributes, warnings): 추출된 attribute 목록과 사용자에게 보여줄 경고 메시지 목록
@@ -133,7 +133,7 @@ def extract_attributes(
             )
             continue
 
-        type_info = _BLENDER_TO_MATTR_TYPE_MAP.get(data_type)
+        type_info = _BLENDER_TO_TOPOLYX_TYPE_MAP.get(data_type)
         if type_info is None:
             warnings.append(
                 f"Skipping attribute '{name}': unsupported data type '{data_type}'"
@@ -184,12 +184,12 @@ def _read_attribute_values(
 
     if data_type == "BYTE_COLOR":
         # Blender의 BYTE_COLOR는 API에서 0~1 정규화된 float로 노출된다.
-        # MATTR U8×4로 저장하기 위해 0~255 범위로 양자화한다.
+        # Topolyx U8×4로 저장하기 위해 0~255 범위로 양자화한다.
         buf = array.array("f", [0.0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
         return [max(0, min(255, int(v * 255.0 + 0.5))) for v in buf]
 
-    component_type = _BLENDER_TO_MATTR_TYPE_MAP[data_type][0]
+    component_type = _BLENDER_TO_TOPOLYX_TYPE_MAP[data_type][0]
     if component_type == "F32":
         buf = array.array("f", [0.0]) * total_count
         attribute.data.foreach_get(prop_name, buf)
@@ -211,10 +211,10 @@ def _read_attribute_values(
     raise RuntimeError(f"Unhandled attribute data type: {data_type}")
 
 
-def mattr_component_type_to_blender(
+def topolyx_component_type_to_blender(
     component_type: str, component_count: int, use_byte_color: bool = False
 ) -> Tuple[str, str]:
-    """MATTR attribute descriptor를 Blender attribute type으로 변환한다.
+    """Topolyx attribute descriptor를 Blender attribute type으로 변환한다.
 
     U32는 Blender에 unsigned 32-bit attribute type이 없으므로, 비트 패턴을 그대로
     유지한 채 signed 32-bit(INT/INT32_2D)로 해석한다. 이는 의도된 동작이다.
@@ -253,9 +253,9 @@ def mattr_component_type_to_blender(
         )
 
     key = (component_type, component_count)
-    result = _MATTR_TO_BLENDER_TYPE_MAP.get(key)
+    result = _TOPOLYX_TO_BLENDER_TYPE_MAP.get(key)
     if result is None:
         raise ValueError(
-            f"Unsupported MATTR attribute type: ({component_type}, {component_count})"
+            f"Unsupported Topolyx attribute type: ({component_type}, {component_count})"
         )
     return result

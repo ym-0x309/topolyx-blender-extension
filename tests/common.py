@@ -1,4 +1,4 @@
-"""MATTR Exporter 테스트용 공통 헬퍼."""
+"""Topolyx Exporter 테스트용 공통 헬퍼."""
 
 import json
 import struct
@@ -9,7 +9,7 @@ from typing import Sequence
 
 import bpy
 
-ADDON_MODULE = "blender_mattr_exporter"
+ADDON_MODULE = "blender_topolyx_exporter"
 
 
 def reset_addon():
@@ -28,10 +28,10 @@ def reset_addon():
         if name == ADDON_MODULE or name.startswith(ADDON_MODULE + "."):
             del sys.modules[name]
 
-    import blender_mattr_exporter
+    import blender_topolyx_exporter
 
-    blender_mattr_exporter.register()
-    return blender_mattr_exporter
+    blender_topolyx_exporter.register()
+    return blender_topolyx_exporter
 
 
 def clear_scene():
@@ -56,8 +56,8 @@ def export_active_object(
     obj = bpy.context.active_object
     if obj is not None:
         obj.select_set(True)
-    json_path = tmpdir / f"{name}.mattr.json"
-    result = bpy.ops.export_mesh.mattr(filepath=str(json_path), **operator_kwargs)
+    json_path = tmpdir / f"{name}.tlyx.json"
+    result = bpy.ops.export_mesh.tlyx(filepath=str(json_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Operator returned {result}"
     bin_path = json_path.with_name(json_path.stem + ".bin")
     return json_path, bin_path
@@ -67,8 +67,8 @@ def export_selected(
     tmpdir: Path, name: str, **operator_kwargs
 ) -> tuple[Path, Path]:
     """현재 선택된 오브젝트들을 익스포트하고 JSON/bin 경로를 반환한다."""
-    json_path = tmpdir / f"{name}.mattr.json"
-    result = bpy.ops.export_mesh.mattr(
+    json_path = tmpdir / f"{name}.tlyx.json"
+    result = bpy.ops.export_mesh.tlyx(
         filepath=str(json_path), use_selection=True, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
@@ -78,8 +78,8 @@ def export_selected(
 
 def export_all_meshes(tmpdir: Path, name: str, **operator_kwargs) -> tuple[Path, Path]:
     """씬의 모든 메시 오브젝트를 익스포트하고 JSON/bin 경로를 반환한다."""
-    json_path = tmpdir / f"{name}.mattr.json"
-    result = bpy.ops.export_mesh.mattr(
+    json_path = tmpdir / f"{name}.tlyx.json"
+    result = bpy.ops.export_mesh.tlyx(
         filepath=str(json_path), use_selection=False, **operator_kwargs
     )
     assert result == {"FINISHED"}, f"Operator returned {result}"
@@ -93,9 +93,9 @@ def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]:
         data = json.load(f)
     bin_data = bin_path.read_bytes()
 
-    from blender_mattr_exporter import mattr_validator
+    from blender_topolyx_exporter import topolyx_validator
 
-    mattr_validator.validate_mattr(data, bin_data)
+    topolyx_validator.validate_topolyx(data, bin_data)
     return data, bin_data
 
 
@@ -155,30 +155,30 @@ def assert_bool_values(bin_data: bytes, desc: dict, expected: Sequence[int]) -> 
 
 def tempdir() -> Path:
     """테스트용 임시 디렉터리를 Path 객체로 반환한다."""
-    return Path(tempfile.mkdtemp(prefix="mattr_test_"))
+    return Path(tempfile.mkdtemp(prefix="topolyx_test_"))
 
 
-def import_mattr_file(json_path: Path, **operator_kwargs) -> None:
-    """MATTR 파일을 Import Operator로 불러온다."""
-    result = bpy.ops.import_mesh.mattr(filepath=str(json_path), **operator_kwargs)
+def import_topolyx_file(json_path: Path, **operator_kwargs) -> None:
+    """Topolyx 파일을 Import Operator로 불러온다."""
+    result = bpy.ops.import_mesh.tlyx(filepath=str(json_path), **operator_kwargs)
     assert result == {"FINISHED"}, f"Import operator returned {result}"
 
 
 def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
-    """MATTR 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
+    """Topolyx 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 
     Attribute 복원은 포함하지 않으며, Phase 8 attribute import 테스트에서
     mesh 생성 부분을 공유하기 위한 헬퍼이다.
     """
     from mathutils import Vector
 
-    from blender_mattr_exporter.mattr_binary import BinaryBufferReader
-    from blender_mattr_exporter.mattr_coordinate import CoordinateConverter
-    from blender_mattr_exporter.mattr_mesh_import import build_blender_mesh
-    from blender_mattr_exporter.mattr_reader import read_mattr
+    from blender_topolyx_exporter.topolyx_binary import BinaryBufferReader
+    from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
+    from blender_topolyx_exporter.topolyx_mesh_import import build_blender_mesh
+    from blender_topolyx_exporter.topolyx_reader import read_topolyx
 
-    mattr_file, bin_data = read_mattr(json_path)
-    mesh_data = mattr_file.meshes[0]
+    topolyx_file, bin_data = read_topolyx(json_path)
+    mesh_data = topolyx_file.meshes[0]
     topo = mesh_data.topology
     reader = BinaryBufferReader(bin_data)
 
@@ -215,7 +215,7 @@ def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
     )
 
     converter = CoordinateConverter.from_coordinate_system(
-        mattr_file.coordinate_system
+        topolyx_file.coordinate_system
     )
     converted_positions = []
     for i in range(0, len(positions), 3):

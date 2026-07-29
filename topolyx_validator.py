@@ -1,4 +1,4 @@
-"""MATTR 출력 파일의 유효성을 검증한다."""
+"""Topolyx 출력 파일의 유효성을 검증한다."""
 
 import json
 import math
@@ -19,7 +19,7 @@ _COMPONENT_SIZES = {
 
 _VERSION_PATTERN = re.compile(r"^\d+\.\d+(?:\.\d+)?$")
 
-# 이 익스포터/리더가 지원하는 MATTR 포맷 버전(문서 기준 x.y.z).
+# 이 익스포터/리더가 지원하는 Topolyx 포맷 버전(문서 기준 x.y.z).
 _SUPPORTED_VERSION = "0.3.0"
 _SUPPORTED_MAJOR_VERSION = _SUPPORTED_VERSION.split(".")[0]
 _SUPPORTED_MINOR_VERSION = _SUPPORTED_VERSION.split(".")[1]
@@ -28,16 +28,16 @@ _SUPPORTED_MINOR_VERSION = _SUPPORTED_VERSION.split(".")[1]
 _MAX_BUFFER_OFFSET = 2**64 - 1
 
 
-class MattrValidationError(Exception):
-    """MATTR 파일이 명세 조건을 만족하지 않을 때 발생하는 예외."""
+class TopolyxValidationError(Exception):
+    """Topolyx 파일이 명세 조건을 만족하지 않을 때 발생하는 예외."""
 
     pass
 
 
-def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> None:
-    """JSON 파일 경로를 기준으로 MATTR 파일 쌍을 검증한다.
+def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> None:
+    """JSON 파일 경로를 기준으로 Topolyx 파일 쌍을 검증한다.
 
-    bin_path가 주어지지 않으면 json_path와 동일한 basename의 .mattr.bin 파일을 사용한다.
+    bin_path가 주어지지 않으면 json_path와 동일한 basename의 .tlyx.bin 파일을 사용한다.
     """
     json_path = Path(json_path)
     if bin_path is None:
@@ -46,18 +46,18 @@ def validate_mattr_file(json_path: Path, bin_path: Optional[Path] = None) -> Non
         bin_path = Path(bin_path)
 
     if not json_path.exists():
-        raise MattrValidationError(f"JSON file not found: {json_path}")
+        raise TopolyxValidationError(f"JSON file not found: {json_path}")
     if not bin_path.exists():
-        raise MattrValidationError(f"Binary file not found: {bin_path}")
+        raise TopolyxValidationError(f"Binary file not found: {bin_path}")
 
     with open(json_path, "r", encoding="utf-8") as f:
         json_data = json.load(f)
     bin_data = bin_path.read_bytes()
 
-    validate_mattr(json_data, bin_data)
+    validate_topolyx(json_data, bin_data)
 
 
-def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
+def validate_topolyx(json_data: Dict[str, Any], bin_data: bytes) -> None:
     """JSON 메타데이터와 binary 데이터가 명세 조건을 만족하는지 검증한다."""
     _validate_header(json_data)
     _validate_buffer(json_data, bin_data)
@@ -73,8 +73,8 @@ def validate_mattr(json_data: Dict[str, Any], bin_data: bytes) -> None:
 
 
 def _fail(message: str) -> None:
-    """MattrValidationError를 발생시킨다."""
-    raise MattrValidationError(message)
+    """TopolyxValidationError를 발생시킨다."""
+    raise TopolyxValidationError(message)
 
 
 def _validate_header(json_data: Dict[str, Any]) -> None:
@@ -83,8 +83,8 @@ def _validate_header(json_data: Dict[str, Any]) -> None:
         _fail("Missing 'header' field")
 
     fmt = header.get("format")
-    if fmt != "MATTR":
-        _fail(f"Unexpected header.format: {fmt!r} (expected 'MATTR')")
+    if fmt != "Topolyx":
+        _fail(f"Unexpected header.format: {fmt!r} (expected 'Topolyx')")
 
     version = header.get("version")
     if version is None:

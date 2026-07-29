@@ -2,25 +2,25 @@ import bpy
 from bpy.types import TOPBAR_MT_file_export, TOPBAR_MT_file_import
 from bpy.utils import register_class, unregister_class
 
-from . import mattr_export_operator, mattr_import_operator
+from . import topolyx_export_operator, topolyx_import_operator
 
 classes = [
-    mattr_export_operator.MATTR_OT_export_mesh,
-    mattr_import_operator.MATTR_OT_import_mesh,
+    topolyx_export_operator.TOPOLYX_OT_export_mesh,
+    topolyx_import_operator.TOPOLYX_OT_import_mesh,
 ]
 
 
 def menu_func_export(self, _context):
     self.layout.operator(
-        mattr_export_operator.MATTR_OT_export_mesh.bl_idname,
-        text="MATTR (.mattr.json)",
+        topolyx_export_operator.TOPOLYX_OT_export_mesh.bl_idname,
+        text="Topolyx (.tlyx.json)",
     )
 
 
 def menu_func_import(self, _context):
     self.layout.operator(
-        mattr_import_operator.MATTR_OT_import_mesh.bl_idname,
-        text="MATTR (.mattr.json)",
+        topolyx_import_operator.TOPOLYX_OT_import_mesh.bl_idname,
+        text="Topolyx (.tlyx.json)",
     )
 
 

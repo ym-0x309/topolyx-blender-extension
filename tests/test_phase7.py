@@ -1,7 +1,7 @@
-"""Phase 7 tests — MATTR import Operator smoke tests.
+"""Phase 7 tests — Topolyx import Operator smoke tests.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase7.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase7.py
 """
 
 import sys
@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.tests import common
 
 
 def test_import_operator_basic():
@@ -25,7 +25,7 @@ def test_import_operator_basic():
         json_path, bin_path = common.export_active_object(tmpdir, "cube")
         common.clear_scene()
 
-        common.import_mattr_file(json_path)
+        common.import_topolyx_file(json_path)
 
         assert len(bpy.context.scene.objects) == 1
         obj = bpy.context.active_object
@@ -54,7 +54,7 @@ def test_import_without_attributes():
         json_path, bin_path = common.export_active_object(tmpdir, "cube")
         common.clear_scene()
 
-        common.import_mattr_file(json_path, import_attributes=False)
+        common.import_topolyx_file(json_path, import_attributes=False)
 
         obj = bpy.context.active_object
         assert obj.type == "MESH"
@@ -74,12 +74,12 @@ def test_import_missing_file():
     common.clear_scene()
     tmpdir = common.tempdir()
     try:
-        missing_path = tmpdir / "missing.mattr.json"
+        missing_path = tmpdir / "missing.tlyx.json"
         try:
-            common.import_mattr_file(missing_path)
+            common.import_topolyx_file(missing_path)
             raise AssertionError("Import operator should have failed for missing file")
         except RuntimeError as exc:
-            assert "MATTR import failed" in str(exc)
+            assert "Topolyx import failed" in str(exc)
     finally:
         import shutil
 

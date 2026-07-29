@@ -1,4 +1,4 @@
-"""MATTR binary buffer 작성/읽기 유틸리티."""
+"""Topolyx binary buffer 작성/읽기 유틸리티."""
 
 import array
 import struct

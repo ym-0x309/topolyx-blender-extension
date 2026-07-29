@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
-id = "blender_mattr_exporter"
-name = "MATTR Exporter"
+id = "blender_topolyx_exporter"
+name = "Topolyx Exporter"
 version = "0.0.1"
-tagline = "Export Blender meshes to MATTR format"
+tagline = "Export Blender meshes to Topolyx format"
 maintainer = "0x309 <ymh0402@proton.me>"
 type = "add-on"
 

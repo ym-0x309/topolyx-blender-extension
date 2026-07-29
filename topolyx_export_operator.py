@@ -5,9 +5,9 @@ from bpy_extras.io_utils import ExportHelper
 
 from pathlib import Path
 
-from . import mattr_validator, mattr_writer
-from .mattr_coordinate import CoordinateConverter
-from .mattr_types import CoordinateSystem
+from . import topolyx_validator, topolyx_writer
+from .topolyx_coordinate import CoordinateConverter
+from .topolyx_types import CoordinateSystem
 
 
 _AXIS_ITEMS = [
@@ -20,15 +20,15 @@ _AXIS_ITEMS = [
 ]
 
 
-class MATTR_OT_export_mesh(Operator, ExportHelper):
-    bl_idname = "export_mesh.mattr"
-    bl_label = "Export MATTR"
+class TOPOLYX_OT_export_mesh(Operator, ExportHelper):
+    bl_idname = "export_mesh.tlyx"
+    bl_label = "Export Topolyx"
     bl_options = {"PRESET"}
 
-    filename_ext = ".mattr.json"
+    filename_ext = ".tlyx.json"
 
     filter_glob: StringProperty(
-        default="*.mattr.json",
+        default="*.tlyx.json",
         options={"HIDDEN"},
         maxlen=255,
     )
@@ -43,11 +43,11 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         name="Coordinate System Preset",
         description="Select a preset or choose CUSTOM to configure axes manually",
         items=[
-            ("MATTR_DEFAULT", "MATTR Default", "+Z up, +Y forward, right-handed, CCW"),
+            ("TOPOLYX_DEFAULT", "Topolyx Default", "+Z up, +Y forward, right-handed, CCW"),
             ("BLENDER", "Blender", "+Z up, +Y forward, right-handed, CCW (Blender native)"),
             ("CUSTOM", "Custom", "Manually specify up/forward axes and other options"),
         ],
-        default="MATTR_DEFAULT",
+        default="TOPOLYX_DEFAULT",
     )
 
     up_axis: EnumProperty(
@@ -117,21 +117,21 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
     )
 
     def check(self, _context):
-        """다중 확장자(.mattr.json)가 중복되지 않도록 filepath를 보정한다."""
+        """다중 확장자(.tlyx.json)가 중복되지 않도록 filepath를 보정한다."""
         import os
 
         filepath = self.filepath
         if not os.path.basename(filepath):
             return False
 
-        ext = ".mattr.json"
+        ext = ".tlyx.json"
         if filepath.endswith(ext):
             return False
 
-        # 사용자가 .json이나 .mattr까지만 입력한 경우 깔끔하게 재구성
+        # 사용자가 .json이나 .tlyx까지만 입력한 경우 깔끔하게 재구성
         if filepath.endswith(".json"):
             filepath = filepath[:-5]
-        elif filepath.endswith(".mattr"):
+        elif filepath.endswith(".tlyx"):
             filepath = filepath[:-6]
 
         new_filepath = bpy.path.ensure_ext(filepath, ext)
@@ -195,7 +195,7 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             self.report({"ERROR"}, f"Invalid coordinate system: {exc}")
             return {"CANCELLED"}
 
-        self.filepath = _ensure_mattr_json_ext(self.filepath)
+        self.filepath = _ensure_topolyx_json_ext(self.filepath)
         json_path = Path(self.filepath)
         bin_path = json_path.with_name(json_path.stem + ".bin")
 
@@ -206,7 +206,7 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             wm.progress_update(processed_count)
 
         try:
-            writer_warnings = mattr_writer.write_mattr(
+            writer_warnings = topolyx_writer.write_topolyx(
                 self.filepath,
                 mesh_objects,
                 coordinate_system,
@@ -218,21 +218,21 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             )
             warnings.extend(writer_warnings)
 
-            mattr_validator.validate_mattr_file(self.filepath)
-        except mattr_validator.MattrValidationError as exc:
+            topolyx_validator.validate_topolyx_file(self.filepath)
+        except topolyx_validator.TopolyxValidationError as exc:
             _delete_export_files(json_path, bin_path)
-            self.report({"ERROR"}, f"MATTR validation failed: {exc}")
+            self.report({"ERROR"}, f"Topolyx validation failed: {exc}")
             return {"CANCELLED"}
         except Exception as exc:
             # Writer already cleans up on write failure; this catches any other error.
             _delete_export_files(json_path, bin_path)
-            self.report({"ERROR"}, f"MATTR export failed: {exc}")
+            self.report({"ERROR"}, f"Topolyx export failed: {exc}")
             return {"CANCELLED"}
         finally:
             wm.progress_end()
 
         self._report_warnings(warnings)
-        self.report({"INFO"}, f"Exported MATTR to {self.filepath}")
+        self.report({"INFO"}, f"Exported Topolyx to {self.filepath}")
         return {"FINISHED"}
 
     def _report_warnings(self, warnings: list[str]) -> None:
@@ -241,15 +241,15 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
             return
 
         for warning in warnings:
-            print(f"MATTR export warning: {warning}")
+            print(f"Topolyx export warning: {warning}")
 
         # UI에는 핵심 내용만 요약 리포트 (Blender report는 너무 길면 잘림)
         if len(warnings) == 1:
-            self.report({"WARNING"}, f"MATTR export warning: {warnings[0]}")
+            self.report({"WARNING"}, f"Topolyx export warning: {warnings[0]}")
         else:
             self.report(
                 {"WARNING"},
-                f"MATTR export: {len(warnings)} warnings (see console)",
+                f"Topolyx export: {len(warnings)} warnings (see console)",
             )
 
     def _build_coordinate_system(self) -> CoordinateSystem:
@@ -262,7 +262,7 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
                 winding="CCW",
                 meters_per_unit=1.0,
             )
-        if self.coordinate_system_preset == "MATTR_DEFAULT":
+        if self.coordinate_system_preset == "TOPOLYX_DEFAULT":
             return CoordinateSystem(
                 up_axis="+Z",
                 forward_axis="+Y",
@@ -279,14 +279,14 @@ class MATTR_OT_export_mesh(Operator, ExportHelper):
         )
 
 
-def _ensure_mattr_json_ext(filepath: str) -> str:
-    """filepath가 .mattr.json로 끝나도록 보정한다."""
-    ext = ".mattr.json"
+def _ensure_topolyx_json_ext(filepath: str) -> str:
+    """filepath가 .tlyx.json로 끝나도록 보정한다."""
+    ext = ".tlyx.json"
     if filepath.endswith(ext):
         return filepath
     if filepath.endswith(".json"):
         return filepath[:-5] + ext
-    if filepath.endswith(".mattr"):
+    if filepath.endswith(".tlyx"):
         return filepath + ".json"
     return filepath + ext
 

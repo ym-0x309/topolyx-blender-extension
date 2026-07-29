@@ -1,7 +1,7 @@
 """Phase 2 테스트 — 좌표계 변환 및 Object Transform 변환 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase2.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase2.py
 """
 
 import struct
@@ -14,12 +14,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Matrix, Vector
 
-from blender_mattr_exporter.mattr_coordinate import CoordinateConverter
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
+from blender_topolyx_exporter.tests import common
 
 
-def test_default_cube_mattr_default():
-    """MATTR_DEFAULT preset으로 Default Cube를 익스포트했을 때 좌표 변환이 적용되는지 확인한다."""
+def test_default_cube_topolyx_default():
+    """TOPOLYX_DEFAULT preset으로 Default Cube를 익스포트했을 때 좌표 변환이 적용되는지 확인한다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
 
@@ -27,8 +27,8 @@ def test_default_cube_mattr_default():
     try:
         json_path, bin_path = common.export_active_object(
             tmpdir,
-            "cube_mattr_default",
-            coordinate_system_preset="MATTR_DEFAULT",
+            "cube_topolyx_default",
+            coordinate_system_preset="TOPOLYX_DEFAULT",
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
@@ -58,7 +58,7 @@ def test_default_cube_mattr_default():
         assert min(ys) == -1.0 and max(ys) == 1.0
         assert min(zs) == -1.0 and max(zs) == 1.0
 
-        # Blender와 MATTR_DEFAULT는 동일한 좌표계(up=+Z, forward=+Y)이므로
+        # Blender와 TOPOLYX_DEFAULT는 동일한 좌표계(up=+Z, forward=+Y)이므로
         # 좌표 변환이 일어나지 않는다.
         first_x, first_y, first_z = positions[0], positions[1], positions[2]
         assert abs(first_x - (-1.0)) < 1e-6
@@ -69,11 +69,11 @@ def test_default_cube_mattr_default():
 
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    print("test_default_cube_mattr_default passed")
+    print("test_default_cube_topolyx_default passed")
 
 
-def test_transformed_cube_mattr_default():
-    """MATTR_DEFAULT preset에서 transform translation이 변환되지 않고 유지되는지 확인한다."""
+def test_transformed_cube_topolyx_default():
+    """TOPOLYX_DEFAULT preset에서 transform translation이 변환되지 않고 유지되는지 확인한다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(1, 2, 3))
     obj = bpy.context.active_object
@@ -83,15 +83,15 @@ def test_transformed_cube_mattr_default():
     try:
         json_path, bin_path = common.export_active_object(
             tmpdir,
-            "transformed_cube_mattr_default",
-            coordinate_system_preset="MATTR_DEFAULT",
+            "transformed_cube_topolyx_default",
+            coordinate_system_preset="TOPOLYX_DEFAULT",
             export_attributes=False,
         )
         data, bin_data = common.load_result(json_path, bin_path)
 
         transform = data["objects"][0]["transform"]
         assert len(transform) == 16
-        # Blender와 MATTR_DEFAULT는 동일한 좌표계이므로 변환 없이 (1, 2, 3) 유지
+        # Blender와 TOPOLYX_DEFAULT는 동일한 좌표계이므로 변환 없이 (1, 2, 3) 유지
         # column-major에서 translation은 4번째 column(인덱스 12,13,14)
         assert abs(transform[12] - 1.0) < 1e-6
         assert abs(transform[13] - 2.0) < 1e-6
@@ -115,7 +115,7 @@ def test_transformed_cube_mattr_default():
 
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    print("test_transformed_cube_mattr_default passed")
+    print("test_transformed_cube_topolyx_default passed")
 
 
 def test_blender_preset_unchanged():
@@ -189,9 +189,9 @@ def test_face_offsets_order():
 
 def test_coordinate_converter_matrix():
     """CoordinateConverter.convert_matrix가 similarity transform을 수행하는지 확인한다."""
-    converter = CoordinateConverter("MATTR_DEFAULT")
+    converter = CoordinateConverter("TOPOLYX_DEFAULT")
 
-    # Blender와 MATTR_DEFAULT는 동일한 좌표계이므로 translation 변환 없음
+    # Blender와 TOPOLYX_DEFAULT는 동일한 좌표계이므로 translation 변환 없음
     T = Matrix.Translation(Vector((1, 2, 3)))
     converted = converter.convert_matrix(T)
     translation = converted.to_translation()
@@ -212,8 +212,8 @@ def test_coordinate_converter_matrix():
 
 def main():
     common.reset_addon()
-    test_default_cube_mattr_default()
-    test_transformed_cube_mattr_default()
+    test_default_cube_topolyx_default()
+    test_transformed_cube_topolyx_default()
     test_blender_preset_unchanged()
     test_face_offsets_order()
     test_coordinate_converter_matrix()

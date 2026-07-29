@@ -1,4 +1,4 @@
-"""Restore MATTR attributes onto a Blender Mesh data block."""
+"""Restore Topolyx attributes onto a Blender Mesh data block."""
 
 import array
 from typing import Callable, List, Optional, Sequence
@@ -6,16 +6,16 @@ from typing import Callable, List, Optional, Sequence
 import bpy
 from mathutils import Quaternion, Vector
 
-from .mattr_attribute import (
+from .topolyx_attribute import (
     _SUPPORTED_DOMAINS,
-    mattr_component_type_to_blender,
+    topolyx_component_type_to_blender,
 )
-from .mattr_binary import BinaryBufferReader
-from .mattr_coordinate import CoordinateConverter
-from .mattr_types import Attribute, DataDescriptor
+from .topolyx_binary import BinaryBufferReader
+from .topolyx_coordinate import CoordinateConverter
+from .topolyx_types import Attribute, DataDescriptor
 
 
-# MATTR domain -> Blender Mesh element collection attribute name
+# Topolyx domain -> Blender Mesh element collection attribute name
 _DOMAIN_MESH_COLLECTION = {
     "POINT": "vertices",
     "EDGE": "edges",
@@ -43,14 +43,14 @@ def apply_attributes(
     warnings: Optional[List[str]] = None,
     converter: Optional[CoordinateConverter] = None,
 ) -> List[str]:
-    """Apply MATTR attributes to an existing Blender Mesh.
+    """Apply Topolyx attributes to an existing Blender Mesh.
 
     U32 attributes are reinterpreted as signed 32-bit integers bit-for-bit,
     because Blender has no unsigned 32-bit attribute type. This is intentional.
 
     Args:
         mesh: Blender Mesh with topology already built.
-        attributes: MATTR attributes to restore.
+        attributes: Topolyx attributes to restore.
         bin_data: raw binary buffer.
         warnings: optional existing warnings list.
 
@@ -77,7 +77,7 @@ def _apply_single_attribute(
     used_names: set[str],
     converter: Optional[CoordinateConverter] = None,
 ) -> Optional[str]:
-    """Restore one MATTR attribute. Returns a warning message or None."""
+    """Restore one Topolyx attribute. Returns a warning message or None."""
     name = attr.name
     domain = attr.domain
 
@@ -85,7 +85,7 @@ def _apply_single_attribute(
         return f"Skipping attribute '{name}': unsupported domain '{domain}'"
 
     try:
-        blender_type, prop_name = mattr_component_type_to_blender(
+        blender_type, prop_name = topolyx_component_type_to_blender(
             attr.data.component_type,
             attr.data.component_count,
         )

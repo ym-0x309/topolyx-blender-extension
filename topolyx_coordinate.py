@@ -1,10 +1,10 @@
-"""Blender 좌표계와 MATTR 목표 좌표계 사이를 양방향으로 변환하는 유틸리티."""
+"""Blender 좌표계와 Topolyx 목표 좌표계 사이를 양방향으로 변환하는 유틸리티."""
 
 from typing import Dict, Optional
 
 from mathutils import Matrix, Quaternion, Vector
 
-from .mattr_types import CoordinateSystem
+from .topolyx_types import CoordinateSystem
 
 
 _AXIS_VECTORS = {
@@ -23,7 +23,7 @@ _PRESETS: Dict[str, CoordinateSystem] = {
         handedness="RIGHT",
         winding="CCW",
     ),
-    "MATTR_DEFAULT": CoordinateSystem(
+    "TOPOLYX_DEFAULT": CoordinateSystem(
         up_axis="+Z",
         forward_axis="+Y",
         handedness="RIGHT",

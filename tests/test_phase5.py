@@ -1,7 +1,7 @@
 """Phase 5 테스트 — 엣지 케이스 및 검증 강화.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase5.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase5.py
 """
 
 import json
@@ -13,8 +13,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter import mattr_validator
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter import topolyx_validator
+from blender_topolyx_exporter.tests import common
 
 
 def test_ngon():
@@ -301,10 +301,10 @@ def test_no_mesh_objects_cancelled():
 
     tmpdir = common.tempdir()
     try:
-        json_path = tmpdir / "empty_scene.mattr.json"
+        json_path = tmpdir / "empty_scene.tlyx.json"
         # Blender에서 Operator가 ERROR를 report하면 bpy.ops.* 호출 시 RuntimeError가 발생한다.
         try:
-            bpy.ops.export_mesh.mattr(filepath=str(json_path))
+            bpy.ops.export_mesh.tlyx(filepath=str(json_path))
             raise AssertionError("Operator should have failed with no mesh objects")
         except RuntimeError as exc:
             assert "No mesh objects to export" in str(exc), f"Unexpected error: {exc}"
@@ -331,14 +331,14 @@ def test_validator_catches_corrupted_json():
         with open(json_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         data["meshes"][0]["element_counts"]["vertices"] = 999
-        corrupted_path = tmpdir / "corrupted.mattr.json"
+        corrupted_path = tmpdir / "corrupted.tlyx.json"
         with open(corrupted_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4)
 
         try:
-            mattr_validator.validate_mattr_file(corrupted_path, bin_path)
+            topolyx_validator.validate_topolyx_file(corrupted_path, bin_path)
             raise AssertionError("Validator should have rejected corrupted JSON")
-        except mattr_validator.MattrValidationError:
+        except topolyx_validator.TopolyxValidationError:
             pass  # 예상된 동작
     finally:
         import shutil

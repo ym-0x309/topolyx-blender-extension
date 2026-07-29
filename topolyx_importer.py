@@ -1,4 +1,4 @@
-"""MATTR file pair importer core."""
+"""Topolyx file pair importer core."""
 
 from pathlib import Path
 from typing import Callable, List, Optional, Sequence
@@ -6,30 +6,30 @@ from typing import Callable, List, Optional, Sequence
 import bpy
 from mathutils import Vector
 
-from .mattr_attribute_import import apply_attributes
-from .mattr_binary import BinaryBufferReader
-from .mattr_coordinate import CoordinateConverter
-from .mattr_mesh_import import build_blender_mesh
-from .mattr_reader import read_mattr
-from .mattr_types import MattrFile, Mesh, ObjectEntry
-from .mattr_utils import column_major_list_to_matrix
+from .topolyx_attribute_import import apply_attributes
+from .topolyx_binary import BinaryBufferReader
+from .topolyx_coordinate import CoordinateConverter
+from .topolyx_mesh_import import build_blender_mesh
+from .topolyx_reader import read_topolyx
+from .topolyx_types import TopolyxFile, Mesh, ObjectEntry
+from .topolyx_utils import column_major_list_to_matrix
 
 
-class MattrImportError(Exception):
-    """Fatal error raised during MATTR import."""
+class TopolyxImportError(Exception):
+    """Fatal error raised during Topolyx import."""
 
     pass
 
 
-def import_mattr(
+def import_topolyx(
     filepath: str | Path,
     import_attributes: bool = True,
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> List[str]:
-    """Import a MATTR file pair into the current Blender scene.
+    """Import a Topolyx file pair into the current Blender scene.
 
     Args:
-        filepath: Path to the .mattr.json file. A .mattr.bin with the same
+        filepath: Path to the .tlyx.json file. A .tlyx.bin with the same
             basename must exist in the same directory.
         import_attributes: Whether to restore mesh attributes.
         progress_callback: Optional callback receiving (current_step, total_steps).
@@ -38,24 +38,24 @@ def import_mattr(
         List of warning messages collected during import.
 
     Raises:
-        MattrImportError: If a fatal error occurs during import.
+        TopolyxImportError: If a fatal error occurs during import.
     """
     filepath = Path(filepath)
 
     try:
-        mattr_file, bin_data = read_mattr(filepath)
+        topolyx_file, bin_data = read_topolyx(filepath)
     except Exception as exc:
-        raise MattrImportError(f"Failed to read MATTR file: {exc}") from exc
+        raise TopolyxImportError(f"Failed to read Topolyx file: {exc}") from exc
 
     converter = CoordinateConverter.from_coordinate_system(
-        mattr_file.coordinate_system
+        topolyx_file.coordinate_system
     )
 
     created_meshes: list[bpy.types.Mesh] = []
     created_objects: list[bpy.types.Object] = []
     warnings: list[str] = []
 
-    total_steps = len(mattr_file.meshes) + len(mattr_file.objects)
+    total_steps = len(topolyx_file.meshes) + len(topolyx_file.objects)
 
     def _report_progress(current: int) -> None:
         if progress_callback is not None:
@@ -64,7 +64,7 @@ def import_mattr(
     mesh_map: dict[int, bpy.types.Mesh] = {}
 
     try:
-        for mesh_index, mesh_data in enumerate(mattr_file.meshes):
+        for mesh_index, mesh_data in enumerate(topolyx_file.meshes):
             mesh = _build_mesh(
                 mesh_data,
                 bin_data,
@@ -76,19 +76,19 @@ def import_mattr(
             mesh_map[mesh_index] = mesh
             _report_progress(mesh_index + 1)
 
-        for obj_index, obj_data in enumerate(mattr_file.objects):
+        for obj_index, obj_data in enumerate(topolyx_file.objects):
             obj = _create_object(
                 obj_data,
                 mesh_map[obj_data.index],
                 converter,
             )
             created_objects.append(obj)
-            _report_progress(len(mattr_file.meshes) + obj_index + 1)
+            _report_progress(len(topolyx_file.meshes) + obj_index + 1)
 
         _select_imported_objects(created_objects)
     except Exception as exc:
         _cleanup_import(created_objects, created_meshes)
-        raise MattrImportError(f"MATTR import failed: {exc}") from exc
+        raise TopolyxImportError(f"Topolyx import failed: {exc}") from exc
 
     return warnings
 
@@ -100,7 +100,7 @@ def _build_mesh(
     import_attributes: bool,
     warnings: List[str],
 ) -> bpy.types.Mesh:
-    """Build a Blender Mesh data block from a MATTR mesh entry."""
+    """Build a Blender Mesh data block from a Topolyx mesh entry."""
     reader = BinaryBufferReader(bin_data)
     topo = mesh_data.topology
 
@@ -175,7 +175,7 @@ def _create_object(
     source_mesh: bpy.types.Mesh,
     converter: CoordinateConverter,
 ) -> bpy.types.Object:
-    """Create a Blender Object from a MATTR object entry and link it to the scene."""
+    """Create a Blender Object from a Topolyx object entry and link it to the scene."""
     obj = bpy.data.objects.new(obj_data.name or "ImportedObject", source_mesh)
 
     collection = bpy.context.view_layer.active_layer_collection.collection

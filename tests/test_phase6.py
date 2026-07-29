@@ -1,7 +1,7 @@
 """Phase 6 테스트 — 개선된 공유 유틸리티 및 reader 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase6.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase6.py
 """
 
 import sys
@@ -13,21 +13,21 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-from blender_mattr_exporter.mattr_attribute import mattr_component_type_to_blender
-from blender_mattr_exporter.mattr_binary import BinaryBuffer, BinaryBufferReader
-from blender_mattr_exporter.mattr_coordinate import CoordinateConverter
-from blender_mattr_exporter.mattr_reader import read_mattr
-from blender_mattr_exporter.mattr_types import CoordinateSystem
-from blender_mattr_exporter.mattr_utils import (
+from blender_topolyx_exporter.topolyx_attribute import topolyx_component_type_to_blender
+from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
+from blender_topolyx_exporter.topolyx_reader import read_topolyx
+from blender_topolyx_exporter.topolyx_types import CoordinateSystem
+from blender_topolyx_exporter.topolyx_utils import (
     column_major_list_to_matrix,
     matrix_to_column_major_list,
 )
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.tests import common
 
 
 def test_inverse_coordinate_conversion():
     """CoordinateConverter의 역변환이 정방향 변환을 되돌리는지 확인한다."""
-    converter = CoordinateConverter("MATTR_DEFAULT")
+    converter = CoordinateConverter("TOPOLYX_DEFAULT")
 
     pos = Vector((1.0, 2.0, 3.0))
     converted = converter.convert_position(pos)
@@ -84,51 +84,51 @@ def test_binary_buffer_reader():
     print("test_binary_buffer_reader passed")
 
 
-def test_mattr_component_type_to_blender():
-    """MATTR attribute 타입을 Blender 타입으로 올바르게 환산하는지 확인한다."""
-    assert mattr_component_type_to_blender("F32", 1) == ("FLOAT", "value")
-    assert mattr_component_type_to_blender("F32", 2) == ("FLOAT2", "vector")
-    assert mattr_component_type_to_blender("F32", 3) == ("FLOAT_VECTOR", "vector")
-    assert mattr_component_type_to_blender("F32", 4) == ("FLOAT_COLOR", "color")
-    assert mattr_component_type_to_blender("U8", 4) == ("BYTE_COLOR", "color")
-    assert mattr_component_type_to_blender("I8", 1) == ("INT8", "value")
-    assert mattr_component_type_to_blender("I32", 1) == ("INT", "value")
-    assert mattr_component_type_to_blender("I32", 2) == ("INT32_2D", "value")
-    assert mattr_component_type_to_blender("U32", 1) == ("INT", "value")
-    assert mattr_component_type_to_blender("U32", 2) == ("INT32_2D", "value")
+def test_topolyx_component_type_to_blender():
+    """Topolyx attribute 타입을 Blender 타입으로 올바르게 환산하는지 확인한다."""
+    assert topolyx_component_type_to_blender("F32", 1) == ("FLOAT", "value")
+    assert topolyx_component_type_to_blender("F32", 2) == ("FLOAT2", "vector")
+    assert topolyx_component_type_to_blender("F32", 3) == ("FLOAT_VECTOR", "vector")
+    assert topolyx_component_type_to_blender("F32", 4) == ("FLOAT_COLOR", "color")
+    assert topolyx_component_type_to_blender("U8", 4) == ("BYTE_COLOR", "color")
+    assert topolyx_component_type_to_blender("I8", 1) == ("INT8", "value")
+    assert topolyx_component_type_to_blender("I32", 1) == ("INT", "value")
+    assert topolyx_component_type_to_blender("I32", 2) == ("INT32_2D", "value")
+    assert topolyx_component_type_to_blender("U32", 1) == ("INT", "value")
+    assert topolyx_component_type_to_blender("U32", 2) == ("INT32_2D", "value")
 
     try:
-        mattr_component_type_to_blender("U32", 3)
+        topolyx_component_type_to_blender("U32", 3)
         raise AssertionError("Expected ValueError for unsupported U32x3")
     except ValueError:
         pass
 
-    print("test_mattr_component_type_to_blender passed")
+    print("test_topolyx_component_type_to_blender passed")
 
 
-def test_read_mattr():
-    """mattr_reader가 익스포트한 파일을 올바르게 파싱하는지 확인한다."""
+def test_read_topolyx():
+    """topolyx_reader가 익스포트한 파일을 올바르게 파싱하는지 확인한다."""
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
 
     tmpdir = common.tempdir()
     try:
         json_path, bin_path = common.export_active_object(tmpdir, "reader_cube")
-        mattr_file, bin_data = read_mattr(json_path)
+        topolyx_file, bin_data = read_topolyx(json_path)
 
-        assert mattr_file.header.format == "MATTR"
-        assert mattr_file.header.version == "0.3"
-        assert mattr_file.buffer.byte_length == len(bin_data)
-        assert len(mattr_file.objects) == 1
-        assert len(mattr_file.meshes) == 1
+        assert topolyx_file.header.format == "Topolyx"
+        assert topolyx_file.header.version == "0.3"
+        assert topolyx_file.buffer.byte_length == len(bin_data)
+        assert len(topolyx_file.objects) == 1
+        assert len(topolyx_file.meshes) == 1
 
-        mesh = mattr_file.meshes[0]
+        mesh = topolyx_file.meshes[0]
         assert mesh.element_counts.vertices == 8
         assert mesh.element_counts.edges == 12
         assert mesh.element_counts.faces == 6
         assert mesh.element_counts.corners == 24
 
-        obj = mattr_file.objects[0]
+        obj = topolyx_file.objects[0]
         assert obj.type == "MESH"
         assert obj.index == 0
         assert len(obj.transform) == 16
@@ -137,12 +137,12 @@ def test_read_mattr():
 
         shutil.rmtree(tmpdir, ignore_errors=True)
 
-    print("test_read_mattr passed")
+    print("test_read_topolyx passed")
 
 
 def test_from_coordinate_system():
     """CoordinateSystem 객체로부터 생성한 변환기가 preset 변환기와 동일한지 확인한다."""
-    preset_converter = CoordinateConverter("MATTR_DEFAULT")
+    preset_converter = CoordinateConverter("TOPOLYX_DEFAULT")
     cs_converter = CoordinateConverter.from_coordinate_system(
         CoordinateSystem(
             up_axis="+Z",
@@ -326,7 +326,7 @@ def main():
     test_inverse_coordinate_conversion()
     test_matrix_serialization_round_trip()
     test_binary_buffer_reader()
-    test_mattr_component_type_to_blender()
+    test_topolyx_component_type_to_blender()
     test_from_coordinate_system()
     test_arbitrary_coordinate_system()
     test_winding_property()
@@ -334,7 +334,7 @@ def main():
     test_invalid_coordinate_system_rejected()
     test_custom_coordinate_system_export()
     test_rotation_tangent_conversion_round_trip()
-    test_read_mattr()
+    test_read_topolyx()
     print("All Phase 6 tests passed")
 
 

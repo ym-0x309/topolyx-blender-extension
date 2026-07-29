@@ -1,7 +1,7 @@
 """Phase 1 테스트 — 토폴로지 익스포트 검증.
 
 Usage:
-    blender -b -P blender_mattr_exporter/tests/test_phase1.py
+    blender -b -P blender_topolyx_exporter/tests/test_phase1.py
 """
 
 import struct
@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_mattr_exporter.tests import common
+from blender_topolyx_exporter.tests import common
 
 
 def test_default_cube():
@@ -126,16 +126,16 @@ def test_empty_mesh():
     print("test_empty_mesh passed")
 
 
-def test_ensure_mattr_json_ext():
+def test_ensure_topolyx_json_ext():
     """execute에서 사용하는 확장자 보정 로직을 검증한다."""
-    from blender_mattr_exporter.mattr_export_operator import _ensure_mattr_json_ext
+    from blender_topolyx_exporter.topolyx_export_operator import _ensure_topolyx_json_ext
 
-    assert _ensure_mattr_json_ext("model") == "model.mattr.json"
-    assert _ensure_mattr_json_ext("model.json") == "model.mattr.json"
-    assert _ensure_mattr_json_ext("model.mattr") == "model.mattr.json"
-    assert _ensure_mattr_json_ext("model.mattr.json") == "model.mattr.json"
-    assert _ensure_mattr_json_ext("/tmp/model") == "/tmp/model.mattr.json"
-    print("test_ensure_mattr_json_ext passed")
+    assert _ensure_topolyx_json_ext("model") == "model.tlyx.json"
+    assert _ensure_topolyx_json_ext("model.json") == "model.tlyx.json"
+    assert _ensure_topolyx_json_ext("model.tlyx") == "model.tlyx.json"
+    assert _ensure_topolyx_json_ext("model.tlyx.json") == "model.tlyx.json"
+    assert _ensure_topolyx_json_ext("/tmp/model") == "/tmp/model.tlyx.json"
+    print("test_ensure_topolyx_json_ext passed")
 
 
 def main():
@@ -143,7 +143,7 @@ def main():
     test_default_cube()
     test_transformed_cube()
     test_empty_mesh()
-    test_ensure_mattr_json_ext()
+    test_ensure_topolyx_json_ext()
     print("All Phase 1 tests passed")
 
 

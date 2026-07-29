@@ -1,4 +1,4 @@
-"""MATTR 전체에서 공유하는 작은 유틸리티."""
+"""Topolyx 전체에서 공유하는 작은 유틸리티."""
 
 from typing import List, Sequence
 

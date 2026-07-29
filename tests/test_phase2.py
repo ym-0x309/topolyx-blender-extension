@@ -1,21 +1,21 @@
 """Phase 2 테스트 — 좌표계 변환 및 Object Transform 변환 검증.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase2.py
+    blender -b -P tests/test_phase2.py
 """
 
 import struct
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 from mathutils import Matrix, Vector
 
-from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
+from topolyx_blender_extension.tests import common
 
 
 def test_default_cube_topolyx_default():

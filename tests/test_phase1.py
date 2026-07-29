@@ -1,19 +1,19 @@
 """Phase 1 테스트 — 토폴로지 익스포트 검증.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase1.py
+    blender -b -P tests/test_phase1.py
 """
 
 import struct
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.tests import common
 
 
 def test_default_cube():
@@ -128,7 +128,7 @@ def test_empty_mesh():
 
 def test_ensure_topolyx_json_ext():
     """execute에서 사용하는 확장자 보정 로직을 검증한다."""
-    from blender_topolyx_exporter.topolyx_export_operator import _ensure_topolyx_json_ext
+    from topolyx_blender_extension.topolyx_export_operator import _ensure_topolyx_json_ext
 
     assert _ensure_topolyx_json_ext("model") == "model.tlyx.json"
     assert _ensure_topolyx_json_ext("model.json") == "model.tlyx.json"

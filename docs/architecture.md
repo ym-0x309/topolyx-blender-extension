@@ -1,4 +1,4 @@
-# Topolyx Exporter Architecture
+# Topolyx Blender Extension Architecture
 
 각 파일별 public API 시그니처와 역할을 정리한다. 세부 구현은 포함하지 않는다.
 
@@ -613,7 +613,7 @@ def validate_topolyx_file(json_path: Path, bin_path: Optional[Path] = None) -> N
 ```python
 ADDON_MODULE: str
 ```
-- 애드온 모듈 이름 `"blender_topolyx_exporter"`.
+- 애드온 모듈 이름 `"topolyx_blender_extension"`.
 
 ```python
 def reset_addon() -> module

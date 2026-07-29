@@ -1,28 +1,28 @@
 """Phase 6 테스트 — 개선된 공유 유틸리티 및 reader 검증.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase6.py
+    blender -b -P tests/test_phase6.py
 """
 
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-from blender_topolyx_exporter.topolyx_attribute import topolyx_component_type_to_blender
-from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
-from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
-from blender_topolyx_exporter.topolyx_reader import read_topolyx
-from blender_topolyx_exporter.topolyx_types import CoordinateSystem
-from blender_topolyx_exporter.topolyx_utils import (
+from topolyx_blender_extension.topolyx_attribute import topolyx_component_type_to_blender
+from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
+from topolyx_blender_extension.topolyx_reader import read_topolyx
+from topolyx_blender_extension.topolyx_types import CoordinateSystem
+from topolyx_blender_extension.topolyx_utils import (
     column_major_list_to_matrix,
     matrix_to_column_major_list,
 )
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.tests import common
 
 
 def test_inverse_coordinate_conversion():

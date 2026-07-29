@@ -1,8 +1,8 @@
-# Topolyx Exporter Overview
+# Topolyx Blender Extension Overview
 
 ## Purpose
 
-`Topolyx Exporter` is a Blender Extension (add-on) for exporting Blender mesh data to the `Topolyx` (Mesh Attribute & Topology Transfer Representation) format.
+`Topolyx Blender Extension` is a Blender Extension (add-on) for importing and exporting Blender mesh data to the `Topolyx` (Mesh Attribute & Topology Transfer Representation) format.
 
 It targets Blender 5.1 and later, and aims to store mesh topology (positions, edges, faces, corners) and POINT/EDGE/FACE/CORNER domain attributes losslessly as a `.tlyx.json` + `.tlyx.bin` file pair.
 
@@ -11,7 +11,7 @@ This extension implements Topolyx format version `v0.3.0`.
 ## File Structure
 
 ```text
-blender_topolyx_exporter/
+topolyx_blender_extension/
 ├── blender_manifest.toml       # Extension metadata and Blender compatibility
 ├── __init__.py                 # Add-on registration/deregistration and menu wiring
 ├── topolyx_export_operator.py    # File save dialog and export Operator
@@ -128,5 +128,5 @@ See [TESTING.md](TESTING.md) for detailed test execution instructions.
 Summary:
 
 ```bash
-blender -b -P blender_topolyx_exporter/tests/run_all.py
+blender -b -P tests/run_all.py
 ```

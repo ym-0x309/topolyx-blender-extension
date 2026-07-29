@@ -1,26 +1,26 @@
 """Phase 8 테스트 — Topolyx attribute의 Blender Mesh 복원 검증.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase8.py
+    blender -b -P tests/test_phase8.py
 """
 
 import array
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_topolyx_exporter.topolyx_attribute import topolyx_component_type_to_blender
-from blender_topolyx_exporter.topolyx_attribute_import import (
+from topolyx_blender_extension.topolyx_attribute import topolyx_component_type_to_blender
+from topolyx_blender_extension.topolyx_attribute_import import (
     _read_u32_as_i32,
     apply_attributes,
 )
-from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
-from blender_topolyx_exporter.topolyx_reader import read_topolyx
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
+from topolyx_blender_extension.topolyx_reader import read_topolyx
+from topolyx_blender_extension.tests import common
 
 
 _TYPE_COMPONENT_COUNT = {
@@ -481,8 +481,8 @@ def test_byte_color_roundtrip():
 
 def test_i8_attribute_import():
     """I8x1 attribute가 import 시 INT로 부호 확장되어 저장되는지 확인한다."""
-    from blender_topolyx_exporter.topolyx_binary import BinaryBuffer, BinaryBufferReader
-    from blender_topolyx_exporter.topolyx_types import Attribute, DataDescriptor
+    from topolyx_blender_extension.topolyx_binary import BinaryBuffer, BinaryBufferReader
+    from topolyx_blender_extension.topolyx_types import Attribute, DataDescriptor
 
     common.clear_scene()
     bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))

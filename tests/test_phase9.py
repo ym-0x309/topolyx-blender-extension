@@ -1,20 +1,21 @@
 """Phase 9 tests — Topolyx importer core validation.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase9.py
+    blender -b -P tests/test_phase9.py
 """
 
 import sys
 from pathlib import Path
 
 # Individual execution support
+# 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 from mathutils import Vector
 
-from blender_topolyx_exporter.topolyx_importer import import_topolyx
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.topolyx_importer import import_topolyx
+from topolyx_blender_extension.tests import common
 
 
 def _get_imported_objects():

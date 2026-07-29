@@ -1,11 +1,11 @@
-# Topolyx Exporter Testing
+# Topolyx Blender Extension Testing
 
-본 문서는 Topolyx Exporter의 테스트 실행 방법을 설명한다.
+본 문서는 Topolyx Blender Extension의 테스트 실행 방법을 설명한다.
 
 ## 테스트 구조
 
 ```text
-blender_topolyx_exporter/tests/
+tests/
 ├── common.py           # 공통 테스트 헬퍼
 ├── run_all.py          # Phase 0~9 통합 테스트 러너
 ├── test_phase0.py      # Extension 등록/Operator smoke test
@@ -30,16 +30,16 @@ blender_topolyx_exporter/tests/
 각 테스트는 Blender 백그라운드 모드에서 실행한다.
 
 ```bash
-blender -b -P blender_topolyx_exporter/tests/test_phase0.py
-blender -b -P blender_topolyx_exporter/tests/test_phase1.py
-blender -b -P blender_topolyx_exporter/tests/test_phase2.py
-blender -b -P blender_topolyx_exporter/tests/test_phase3.py
-blender -b -P blender_topolyx_exporter/tests/test_phase4.py
-blender -b -P blender_topolyx_exporter/tests/test_phase5.py
-blender -b -P blender_topolyx_exporter/tests/test_phase6.py
-blender -b -P blender_topolyx_exporter/tests/test_phase7.py
-blender -b -P blender_topolyx_exporter/tests/test_phase8.py
-blender -b -P blender_topolyx_exporter/tests/test_phase9.py
+blender -b -P tests/test_phase0.py
+blender -b -P tests/test_phase1.py
+blender -b -P tests/test_phase2.py
+blender -b -P tests/test_phase3.py
+blender -b -P tests/test_phase4.py
+blender -b -P tests/test_phase5.py
+blender -b -P tests/test_phase6.py
+blender -b -P tests/test_phase7.py
+blender -b -P tests/test_phase8.py
+blender -b -P tests/test_phase9.py
 ```
 
 ## 통합 테스트 실행
@@ -47,7 +47,7 @@ blender -b -P blender_topolyx_exporter/tests/test_phase9.py
 `run_all.py`는 하나의 Blender 프로세스에서 Phase 0~9를 순차적으로 실행한다.
 
 ```bash
-blender -b -P blender_topolyx_exporter/tests/run_all.py
+blender -b -P tests/run_all.py
 ```
 
 종료 코드:
@@ -60,7 +60,7 @@ blender -b -P blender_topolyx_exporter/tests/run_all.py
 GitHub Actions 등에서 사용할 수 있는 간단한 예시이다. Blender를 CI 환경에 설치하는 방법은 프로젝트 외부 의존성이 크므로, 여기서는 Blender가 이미 설치되어 있다고 가정한다.
 
 ```yaml
-name: Topolyx Exporter Tests
+name: Topolyx Blender Extension Tests
 
 on: [push, pull_request]
 
@@ -69,8 +69,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Run Topolyx Exporter tests
-        run: blender -b -P blender_topolyx_exporter/tests/run_all.py
+      - name: Run Topolyx Blender Extension tests
+        run: blender -b -P tests/run_all.py
 ```
 
 ## 테스트 작성 가이드
@@ -78,7 +78,7 @@ jobs:
 새로운 테스트를 추가할 때는 `tests/common.py`의 헬퍼 함수를 사용하는 것을 권장한다.
 
 ```python
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.tests import common
 
 def test_my_feature():
     common.clear_scene()
@@ -96,4 +96,4 @@ def test_my_feature():
 
 ## 주의 사항
 
-- 동일한 애드온 ID(`blender_topolyx_exporter`)가 `~/.config/blender/5.1/extensions/user_default/`에 이미 설치되어 있으면, 테스트가 등록 충돌로 실패할 수 있다. 이 경우 Blender 환경 설정에서 해당 애드온을 비활성화하거나 제거한다.
+- 동일한 애드온 ID(`topolyx_blender_extension`)가 `~/.config/blender/5.1/extensions/user_default/`에 이미 설치되어 있으면, 테스트가 등록 충돌로 실패할 수 있다. 이 경우 Blender 환경 설정에서 해당 애드온을 비활성화하거나 제거한다.

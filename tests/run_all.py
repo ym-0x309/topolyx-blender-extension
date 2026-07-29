@@ -1,7 +1,7 @@
 """Phase 0~9 tests를 하나의 Blender 백그라운드 프로세스에서 순차 실행한다.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/run_all.py
+    blender -b -P tests/run_all.py
 
 종료 코드:
     0 — 모든 테스트 통과
@@ -12,12 +12,12 @@ import sys
 import traceback
 from pathlib import Path
 
-# run_all.py은 blender_topolyx_exporter 패키지를 직접 임포트해야 하므로
-# 프로젝트 루트를 sys.path에 추가한다.
-project_root = Path(__file__).parent.parent.parent
-sys.path.insert(0, str(project_root))
+# run_all.py은 topolyx_blender_extension 패키지(프로젝트 루트)를 직접 임포트해야 하므로
+# 프로젝트 루트의 상위 디렉터리를 sys.path에 추가한다.
+project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(project_root.parent))
 
-from blender_topolyx_exporter.tests import (
+from topolyx_blender_extension.tests import (
     test_phase0,
     test_phase1,
     test_phase2,

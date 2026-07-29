@@ -1,18 +1,18 @@
 """Phase 7 tests — Topolyx import Operator smoke tests.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase7.py
+    blender -b -P tests/test_phase7.py
 """
 
 import sys
 from pathlib import Path
 
-# Run standalone: add project root to sys.path.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.tests import common
 
 
 def test_import_operator_basic():

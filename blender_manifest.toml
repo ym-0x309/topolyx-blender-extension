@@ -1,9 +1,9 @@
 schema_version = "1.0.0"
 
-id = "blender_topolyx_exporter"
-name = "Topolyx Exporter"
+id = "topolyx_blender_extension"
+name = "Topolyx Blender Extension"
 version = "0.0.1"
-tagline = "Export Blender meshes to Topolyx format"
+tagline = "Import and export Blender meshes to the Topolyx format"
 maintainer = "0x309 <ymh0402@proton.me>"
 type = "add-on"
 

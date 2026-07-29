@@ -1,4 +1,4 @@
-"""Topolyx Exporter 테스트용 공통 헬퍼."""
+"""Topolyx Blender Extension 테스트용 공통 헬퍼."""
 
 import json
 import struct
@@ -9,13 +9,17 @@ from typing import Sequence
 
 import bpy
 
-ADDON_MODULE = "blender_topolyx_exporter"
+ADDON_MODULE = "topolyx_blender_extension"
 
 
 def reset_addon():
-    """소스 디렉터리의 애드온을 최신 상태로 등록한다."""
+    """프로젝트 루트(익스텐션 디렉터리)에 있는 소스를 애드온으로 등록한다.
+
+    topolyx_blender_extension 패키지를 이름으로 임포트할 수 있도록
+    프로젝트 루트의 상위 디렉터리를 sys.path에 추가한다.
+    """
     project_root = Path(__file__).parent.parent
-    sys.path.insert(0, str(project_root))
+    sys.path.insert(0, str(project_root.parent))
 
     if ADDON_MODULE in bpy.context.preferences.addons:
         try:
@@ -28,10 +32,10 @@ def reset_addon():
         if name == ADDON_MODULE or name.startswith(ADDON_MODULE + "."):
             del sys.modules[name]
 
-    import blender_topolyx_exporter
+    import topolyx_blender_extension
 
-    blender_topolyx_exporter.register()
-    return blender_topolyx_exporter
+    topolyx_blender_extension.register()
+    return topolyx_blender_extension
 
 
 def clear_scene():
@@ -93,7 +97,7 @@ def load_result(json_path: Path, bin_path: Path) -> tuple[dict, bytes]:
         data = json.load(f)
     bin_data = bin_path.read_bytes()
 
-    from blender_topolyx_exporter import topolyx_validator
+    from topolyx_blender_extension import topolyx_validator
 
     topolyx_validator.validate_topolyx(data, bin_data)
     return data, bin_data
@@ -172,10 +176,10 @@ def import_topology_only(json_path: Path, bin_path: Path) -> bpy.types.Mesh:
     """
     from mathutils import Vector
 
-    from blender_topolyx_exporter.topolyx_binary import BinaryBufferReader
-    from blender_topolyx_exporter.topolyx_coordinate import CoordinateConverter
-    from blender_topolyx_exporter.topolyx_mesh_import import build_blender_mesh
-    from blender_topolyx_exporter.topolyx_reader import read_topolyx
+    from topolyx_blender_extension.topolyx_binary import BinaryBufferReader
+    from topolyx_blender_extension.topolyx_coordinate import CoordinateConverter
+    from topolyx_blender_extension.topolyx_mesh_import import build_blender_mesh
+    from topolyx_blender_extension.topolyx_reader import read_topolyx
 
     topolyx_file, bin_data = read_topolyx(json_path)
     mesh_data = topolyx_file.meshes[0]

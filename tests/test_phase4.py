@@ -1,18 +1,18 @@
 """Phase 4 테스트 — 다중 오브젝트 및 메시 공유 검증.
 
 Usage:
-    blender -b -P blender_topolyx_exporter/tests/test_phase4.py
+    blender -b -P tests/test_phase4.py
 """
 
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy
 
-from blender_topolyx_exporter.tests import common
+from topolyx_blender_extension.tests import common
 
 
 def test_two_separate_meshes():

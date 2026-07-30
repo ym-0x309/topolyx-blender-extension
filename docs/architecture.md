@@ -608,7 +608,7 @@ def validate_topolyx_file(filepath: Path) -> None
 
 - `.tlyx` 단일 파일을 읽어 JSON 청크와 BIN 청크를 분리한 후 검증한다.
 
-## `tests/common.py`
+## `topolyx_import_export/tests/common.py`
 
 - **역할**: 테스트에서 공통으로 사용하는 헬퍼 함수 모음.
 
@@ -695,7 +695,7 @@ def import_topology_only(tlyx_path: Path) -> bpy.types.Mesh
 - Topolyx `.tlyx` 파일에서 topology만 복원한 Blender Mesh 데이터 블록을 반환한다.
 - Phase 7/8 테스트에서 mesh 생성 로직을 공유하기 위해 사용한다.
 
-## `tests/run_all.py`
+## `topolyx_import_export/tests/run_all.py`
 
 - **역할**: Blender 백그라운드 모드에서 Phase 0~9 테스트를 순차 실행하는 통합 러너.
 
@@ -708,42 +708,42 @@ def main() -> int
 - Phase 0~8 테스트 모듈을 순차 실행한다.
 - 모든 테스트가 통과하면 `0`, 실패하면 `1`을 반환한다.
 
-## `tests/test_phase0.py`
+## `topolyx_import_export/tests/test_phase0.py`
 
 - **역할**: Blender 백그라운드 모드에서 Extension 등록과 Operator 호출을 검증하는 smoke test.
 
-## `tests/test_phase1.py`
+## `topolyx_import_export/tests/test_phase1.py`
 
 - **역할**: Blender 백그라운드 모드에서 Default Cube 및 빈 메시의 토폴로지 익스포트를 검증.
 
-## `tests/test_phase2.py`
+## `topolyx_import_export/tests/test_phase2.py`
 
 - **역할**: Blender 백그라운드 모드에서 좌표계 변환 및 Object Transform 변환을 검증.
 
-## `tests/test_phase3.py`
+## `topolyx_import_export/tests/test_phase3.py`
 
 - **역할**: Blender 백그라운드 모드에서 attribute 익스포트를 검증.
 
-## `tests/test_phase4.py`
+## `topolyx_import_export/tests/test_phase4.py`
 
 - **역할**: Blender 백그라운드 모드에서 다중 오브젝트 익스포트와 메시 공유를 검증.
 
-## `tests/test_phase5.py`
+## `topolyx_import_export/tests/test_phase5.py`
 
 - **역할**: Blender 백그라운드 모드에서 N-gon, loose geometry, EDGE domain attribute, 다중 attribute, 음수 integer, 큰 좌표값 등 엣지 케이스와 validator 강화를 검증.
 
-## `tests/test_phase6.py`
+## `topolyx_import_export/tests/test_phase6.py`
 
 - **역할**: Blender 백그라운드 모드에서 양방향 좌표 변환, 행렬 직렬화/역직렬화, binary reader, attribute 역매핑, `topolyx_reader`를 검증.
 
-## `tests/test_phase7.py`
+## `topolyx_import_export/tests/test_phase7.py`
 
 - **역할**: Blender 백그라운드 모드에서 `topolyx_mesh_import.py`의 topology 복원 기능을 검증. Default Cube, 빈 메시, loose vertex/edge, N-gon, mixed face, CW winding reverse를 포함한다.
 
-## `tests/test_phase8.py`
+## `topolyx_import_export/tests/test_phase8.py`
 
 - **역할**: Blender 백그라운드 모드에서 `topolyx_attribute_import.py`의 attribute 복원 기능을 검증. POINT/EDGE/FACE/CORNER domain의 FLOAT, INT, FLOAT_COLOR, FLOAT2, INT32_2D attribute round-trip, 다중 attribute, 예약어 이름 rename, U32 bit-cast를 포함한다.
 
-## `tests/test_phase9.py`
+## `topolyx_import_export/tests/test_phase9.py`
 
 - **역할**: Blender 백그라운드 모드에서 `topolyx_importer.py`의 end-to-end import 기능을 검증. round-trip, 다중 오브젝트, shared mesh, apply_transform, empty mesh, attribute toggle, reserved name 처리를 포함한다.

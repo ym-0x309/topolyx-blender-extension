@@ -16,7 +16,7 @@ def reset_addon():
     """프로젝트 루트(익스텐션 디렉터리)에 있는 소스를 애드온으로 등록한다.
 
     topolyx_import_export 패키지를 이름으로 임포트할 수 있도록
-    프로젝트 루트의 상위 디렉터리를 sys.path에 추가한다.
+    프로젝트 루트를 sys.path에 추가한다.
     """
     project_root = Path(__file__).parent.parent
     sys.path.insert(0, str(project_root.parent))

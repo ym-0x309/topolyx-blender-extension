@@ -1,6 +1,7 @@
 /sources
 /exported_files
 /target
+/topolyx_import_export/topolyx_import_export/topolyx_import_export.zip
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

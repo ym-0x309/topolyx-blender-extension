@@ -1,14 +1,14 @@
 """Phase 3 테스트 — attribute 익스포트 검증.
 
 Usage:
-    blender -b -P tests/test_phase3.py
+    blender -b -P topolyx_import_export/tests/test_phase3.py
 """
 
 import struct
 import sys
 from pathlib import Path
 
-# 개별 실행 시 프로젝트 루트(익스텐션 디렉터리)를 패키지로 임포트할 수 있도록 상위 디렉터리를 sys.path에 추가한다.
+# 개별 실행 시 프로젝트 루트를 패키지로 임포트할 수 있도록 sys.path에 추가한다.
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import bpy

@@ -5,19 +5,20 @@
 ## 테스트 구조
 
 ```text
-tests/
-├── common.py           # 공통 테스트 헬퍼
-├── run_all.py          # Phase 0~9 통합 테스트 러너
-├── test_phase0.py      # Extension 등록/Operator smoke test
-├── test_phase1.py      # 토폴로지 익스포트 검증
-├── test_phase2.py      # 좌표계 변환 및 Object Transform 검증
-├── test_phase3.py      # attribute 익스포트 검증
-├── test_phase4.py      # 다중 오브젝트 및 메시 공유 검증
-├── test_phase5.py      # 엣지 케이스 및 검증 강화
-├── test_phase6.py      # 공유 유틸리티 및 reader 검증
-├── test_phase7.py      # Import Operator smoke test
-├── test_phase8.py      # attribute import 검증
-└── test_phase9.py      # end-to-end importer 검증
+topolyx_import_export/
+└── tests/
+    ├── common.py           # 공통 테스트 헬퍼
+    ├── run_all.py          # Phase 0~9 통합 테스트 러너
+    ├── test_phase0.py      # Extension 등록/Operator smoke test
+    ├── test_phase1.py      # 토폴로지 익스포트 검증
+    ├── test_phase2.py      # 좌표계 변환 및 Object Transform 검증
+    ├── test_phase3.py      # attribute 익스포트 검증
+    ├── test_phase4.py      # 다중 오브젝트 및 메시 공유 검증
+    ├── test_phase5.py      # 엣지 케이스 및 검증 강화
+    ├── test_phase6.py      # 공유 유틸리티 및 reader 검증
+    ├── test_phase7.py      # Import Operator smoke test
+    ├── test_phase8.py      # attribute import 검증
+    └── test_phase9.py      # end-to-end importer 검증
 ```
 
 ## 사전 요구 사항
@@ -30,16 +31,16 @@ tests/
 각 테스트는 Blender 백그라운드 모드에서 실행한다.
 
 ```bash
-blender -b -P tests/test_phase0.py
-blender -b -P tests/test_phase1.py
-blender -b -P tests/test_phase2.py
-blender -b -P tests/test_phase3.py
-blender -b -P tests/test_phase4.py
-blender -b -P tests/test_phase5.py
-blender -b -P tests/test_phase6.py
-blender -b -P tests/test_phase7.py
-blender -b -P tests/test_phase8.py
-blender -b -P tests/test_phase9.py
+blender -b -P topolyx_import_export/tests/test_phase0.py
+blender -b -P topolyx_import_export/tests/test_phase1.py
+blender -b -P topolyx_import_export/tests/test_phase2.py
+blender -b -P topolyx_import_export/tests/test_phase3.py
+blender -b -P topolyx_import_export/tests/test_phase4.py
+blender -b -P topolyx_import_export/tests/test_phase5.py
+blender -b -P topolyx_import_export/tests/test_phase6.py
+blender -b -P topolyx_import_export/tests/test_phase7.py
+blender -b -P topolyx_import_export/tests/test_phase8.py
+blender -b -P topolyx_import_export/tests/test_phase9.py
 ```
 
 ## 통합 테스트 실행
@@ -47,7 +48,7 @@ blender -b -P tests/test_phase9.py
 `run_all.py`는 하나의 Blender 프로세스에서 Phase 0~9를 순차적으로 실행한다.
 
 ```bash
-blender -b -P tests/run_all.py
+blender -b -P topolyx_import_export/tests/run_all.py
 ```
 
 종료 코드:
@@ -70,12 +71,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Run Topolyx Import/Export tests
-        run: blender -b -P tests/run_all.py
+        run: blender -b -P topolyx_import_export/tests/run_all.py
 ```
 
 ## 테스트 작성 가이드
 
-새로운 테스트를 추가할 때는 `tests/common.py`의 헬퍼 함수를 사용하는 것을 권장한다.
+새로운 테스트를 추가할 때는 `topolyx_import_export/tests/common.py`의 헬퍼 함수를 사용하는 것을 권장한다.
 
 ```python
 from topolyx_import_export.tests import common

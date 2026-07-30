@@ -16,7 +16,7 @@ Blender mesh 데이터를 Topolyx 1.0.0 포맷(`.tlyx`)으로 익스포트하고
 
 ## 설치
 
-`blender_manifest.toml`이 들어있는 디렉터리를 Blender Extension 시스템을 통해 설치하고 활성화합니다.
+`topolyx_import_export/blender_manifest.toml`이 들어있는 `topolyx_import_export/` 디렉터리를 Blender Extension 시스템을 통해 설치하고 활성화합니다.
 
 ## 사용
 
@@ -28,11 +28,11 @@ Blender mesh 데이터를 Topolyx 1.0.0 포맷(`.tlyx`)으로 익스포트하고
 Blender 5.1 이상에서 아래 명령으로 실행합니다.
 
 ```bash
-blender -b -P tests/run_all.py
+blender -b -P topolyx_import_export/tests/run_all.py
 ```
 
 자세한 내용은 [docs/TESTING.md](docs/TESTING.md)를 참고하세요.
 
 ## 라이선스
 
-GPL 3.0 License
+GPL-3.0-or-later

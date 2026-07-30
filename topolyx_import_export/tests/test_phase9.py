@@ -1,7 +1,7 @@
 """Phase 9 tests — Topolyx importer core validation.
 
 Usage:
-    blender -b -P tests/test_phase9.py
+    blender -b -P topolyx_import_export/tests/test_phase9.py
 """
 
 import json

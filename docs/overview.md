@@ -11,43 +11,47 @@ This extension implements Topolyx format version `v1.0.0`.
 ## File Structure
 
 ```text
-topolyx_import_export/
-├── blender_manifest.toml       # Extension metadata and Blender compatibility
-├── __init__.py                 # Add-on registration/deregistration and menu wiring
-├── topolyx_export_operator.py    # File save dialog and export Operator
-├── topolyx_writer.py             # JSON + binary assembly entry point
-├── topolyx_reader.py             # JSON + binary load and validation entry point
-├── topolyx_types.py              # Topolyx format data model
-├── topolyx_mesh.py               # Blender Mesh -> Topolyx topology extraction
-├── topolyx_mesh_import.py        # Topolyx topology -> Blender Mesh reconstruction
-├── topolyx_attribute.py          # Blender Mesh Attribute -> Topolyx attribute conversion
-├── topolyx_attribute_import.py   # Topolyx attribute -> Blender Mesh Attribute restoration
-├── topolyx_binary.py             # 4-byte aligned binary buffer builder/reader
-├── topolyx_coordinate.py         # Bidirectional coordinate system conversion
-├── topolyx_utils.py              # Shared utilities (matrix serialization, etc.)
-├── topolyx_validator.py          # Output file validation
-├── topolyx_importer.py           # End-to-end import entry point
-├── topolyx_import_operator.py    # File open dialog and import Operator
-└── tests/
-    ├── common.py               # Common test helpers
-    ├── run_all.py              # Phase 0~9 integrated test runner
-    ├── test_phase0.py          # Extension registration / Operator smoke test
-    ├── test_phase1.py          # Topology export validation
-    ├── test_phase2.py          # Coordinate system and Object Transform validation
-    ├── test_phase3.py          # Attribute export validation
-    ├── test_phase4.py          # Multi-object and mesh sharing validation
-    ├── test_phase5.py          # Edge cases and validation strengthening
-    ├── test_phase6.py          # Shared utilities and reader validation
-    ├── test_phase7.py          # Topology import validation
-    ├── test_phase8.py          # Attribute import validation
-    └── test_phase9.py          # End-to-end importer validation
+topolyx_import_export/              # 프로젝트 루트
+├── topolyx_import_export/          # Blender Extension(add-on) 패키지
+│   ├── blender_manifest.toml       # Extension metadata and Blender compatibility
+│   ├── __init__.py                 # Add-on registration/deregistration and menu wiring
+│   ├── topolyx_export_operator.py    # File save dialog and export Operator
+│   ├── topolyx_writer.py             # JSON + binary assembly entry point
+│   ├── topolyx_reader.py             # JSON + binary load and validation entry point
+│   ├── topolyx_types.py              # Topolyx format data model
+│   ├── topolyx_mesh.py               # Blender Mesh -> Topolyx topology extraction
+│   ├── topolyx_mesh_import.py        # Topolyx topology -> Blender Mesh reconstruction
+│   ├── topolyx_attribute.py          # Blender Mesh Attribute -> Topolyx attribute conversion
+│   ├── topolyx_attribute_import.py   # Topolyx attribute -> Blender Mesh Attribute restoration
+│   ├── topolyx_binary.py             # 4-byte aligned binary buffer builder/reader
+│   ├── topolyx_coordinate.py         # Bidirectional coordinate system conversion
+│   ├── topolyx_utils.py              # Shared utilities (matrix serialization, etc.)
+│   ├── topolyx_validator.py          # Output file validation
+│   ├── topolyx_importer.py           # End-to-end import entry point
+│   ├── topolyx_import_operator.py    # File open dialog and import Operator
+│   └── tests/
+│       ├── common.py               # Common test helpers
+│       ├── run_all.py              # Phase 0~9 integrated test runner
+│       ├── test_phase0.py          # Extension registration / Operator smoke test
+│       ├── test_phase1.py          # Topology export validation
+│       ├── test_phase2.py          # Coordinate system and Object Transform validation
+│       ├── test_phase3.py          # Attribute export validation
+│       ├── test_phase4.py          # Multi-object and mesh sharing validation
+│       ├── test_phase5.py          # Edge cases and validation strengthening
+│       ├── test_phase6.py          # Shared utilities and reader validation
+│       ├── test_phase7.py          # Topology import validation
+│       ├── test_phase8.py          # Attribute import validation
+│       └── test_phase9.py          # End-to-end importer validation
+├── docs/
+├── README.md
+└── LICENSE
 ```
 
 ## Extension Lifecycle
 
 ### 1. Installation and Activation
 
-- The user installs the directory containing `blender_manifest.toml` into Blender.
+- The user installs the `topolyx_import_export/` directory containing `blender_manifest.toml` into Blender.
 - When activated, Blender calls `register()` in `__init__.py`.
 
 ### 2. Registration
@@ -128,5 +132,5 @@ See [TESTING.md](TESTING.md) for detailed test execution instructions.
 Summary:
 
 ```bash
-blender -b -P tests/run_all.py
+blender -b -P topolyx_import_export/tests/run_all.py
 ```

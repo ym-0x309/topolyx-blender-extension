@@ -1,38 +1,33 @@
 # Topolyx Import/Export
 
-Blender mesh 데이터를 Topolyx 1.0.0 포맷(`.tlyx`)으로 익스포트하고 임포트하는 Blender Extension(add-on)입니다.
+[English(`en_US`)](/README.md) | [한국어(`ko_KR`)](/README_ko_KR.md)
 
-- Topolyx 포맷 버전: `v1.0.0`
-- 지원 Blender 버전: `5.1.0` 이상
-- 파일은 단일 `.tlyx` 파일(JSON + BIN 청크 통합)입니다.
+This is a Blender extension for exporting and importing Blender mesh data to and from the Topolyx format (`.tlyx`).
+For more information about the format, please refer to [this repository](https://github.com/ym-0x309/topolyx).
 
-## 주요 기능
+- Topolyx format version: `v1.0.0` or higher
+- Supported Blender versions: `5.1.0` or higher
 
-- Vertex / Edge / Face / Face Corner topology 보존
-- `POINT`, `EDGE`, `FACE`, `CORNER` domain attribute 익스포트/임포트
-- Object transform 및 `meters_per_unit` 스케일 처리
-- 동일 mesh data block 공유
-- Topolyx 1.0.0 고정 좌표계(`+Z` up, `+Y` forward, right-handed, CCW) 사용
+## Key Features
 
-## 설치
+- Preserves vertex, edge, face, and face corner topology
+- Exports and imports `POINT`, `EDGE`, `FACE`, and `CORNER` domain attributes
+- Handles object transforms and `meters_per_unit` scaling
+- Shares the same mesh data block
+- Uses the Topolyx 1.0.0 fixed coordinate system (`+Z` up, `+Y` forward, right-handed, CCW)
 
-`topolyx_import_export/blender_manifest.toml`이 들어있는 `topolyx_import_export/` 디렉터리를 Blender Extension 시스템을 통해 설치하고 활성화합니다.
+## Installation
 
-## 사용
+Since it is not yet listed on [extensions.blender.org](https://extensions.blender.org), you must install it manually.
 
-- 익스포트: `File > Export > Topolyx (.tlyx)`
-- 임포트: `File > Import > Topolyx (.tlyx)`
+1. Download the [latest release](https://github.com/ym-0x309/topolyx_import_export/releases)
+2. Edit > Preferences > Get Extensions > Install from Disk
 
-## 테스트
+## Usage
 
-Blender 5.1 이상에서 아래 명령으로 실행합니다.
+- Export: `File > Export > Topolyx (.tlyx)`
+- Import: `File > Import > Topolyx (.tlyx)`
 
-```bash
-blender -b -P topolyx_import_export/tests/run_all.py
-```
+## Report a Bug
 
-자세한 내용은 [docs/TESTING.md](docs/TESTING.md)를 참고하세요.
-
-## 라이선스
-
-GPL-3.0-or-later
+Please report bugs on the [Issues](https://github.com/ym-0x309/topolyx_import_export/issues) page.

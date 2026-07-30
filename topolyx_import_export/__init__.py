@@ -36,7 +36,3 @@ def unregister():
     TOPBAR_MT_file_export.remove(menu_func_export)
     for cls in reversed(classes):
         unregister_class(cls)
-
-
-if __name__ == "__main__":
-    register()

@@ -2,6 +2,8 @@
 
 [English(`en_US`)](/README.md) | [한국어(`ko_KR`)](/README_ko_KR.md)
 
+![Topolyx Import/Export](/images/topolyx-wordmark-1280-640.png)
+
 블렌더 메쉬 데이터를 Topolyx 포맷(`.tlyx`)으로 익스포트하고 임포트하는 블렌더 익스텐션입니다.
 포맷에 대한 자세한 정보는 [해당 레포지토리](https://github.com/ym-0x309/topolyx)를 참고하십시오.
 

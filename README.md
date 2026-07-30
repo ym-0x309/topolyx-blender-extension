@@ -2,6 +2,8 @@
 
 [English(`en_US`)](/README.md) | [한국어(`ko_KR`)](/README_ko_KR.md)
 
+![Topolyx Import/Export](/images/topolyx-wordmark-1280-640.png)
+
 This is a Blender extension for exporting and importing Blender mesh data to and from the Topolyx format (`.tlyx`).
 For more information about the format, please refer to [this repository](https://github.com/ym-0x309/topolyx).
 

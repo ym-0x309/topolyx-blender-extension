@@ -1,6 +1,6 @@
 schema_version = "1.0.0"
 
-id = "topolyx_import_export"
+id = "topolyx"
 name = "Topolyx Import/Export"
 version = "0.1.0"
 tagline = "Import and export Blender meshes to the Topolyx format"
@@ -15,3 +15,6 @@ blender_version_min = "5.1.0"
 license = [
     "SPDX:GPL-3.0-or-later",
 ]
+
+[permissions]
+files = "Import/export Topolyx from/to disk"

@@ -13,7 +13,7 @@ For more information about the format, please refer to [this repository](https:/
 - Preserves vertex, edge, face, and face corner topology
 - Exports and imports `POINT`, `EDGE`, `FACE`, and `CORNER` domain attributes
 - Handles object transforms and `meters_per_unit` scaling
-- Shares the same mesh data block
+- Support for multiple references to a single mesh data block
 - Uses the Topolyx 1.0.0 fixed coordinate system (`+Z` up, `+Y` forward, right-handed, CCW)
 
 ## Installation
